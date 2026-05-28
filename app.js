@@ -2941,13 +2941,96 @@
     });
   }
 
-  // ===== v3.17 / v3.18.12: 実OCR実行（Tesseract.js + Canvas前処理） =====
+  // ===== v3.18.14: Google Cloud Vision OCR (Apps Script 経由) =====
+  // フロントエンドから Vision API を直接呼ばない。Apps Script Web App に
+  // action="visionOcr" として base64 画像を POST し、サーバ側で Vision API を
+  // 呼び出して OCR 生テキスト + 経費/仕入 抽出結果を取得する。
+  // - API キーは Apps Script の PropertiesService (GCP_VISION_API_KEY) のみに保存。
+  // - 公開リポジトリ・config.local.js のいずれにも API キーは置かない。
+  // - Vision 失敗時 (config 未配置 / ネット失敗 / クォータ超過 等) は呼出側で
+  //   Tesseract.js + Canvas前処理 にフォールバックする。
+  // 戻り値: { ok:true, ocrText, expense:{...}, purchase:{...} } または例外
+  async function _runVisionOCR(dataUrl) {
+    if (!XCHANGE_SHEETS_CONFIG || !XCHANGE_SHEETS_CONFIG.endpoint || !XCHANGE_SHEETS_CONFIG.token) {
+      throw new Error("Vision OCR config unavailable (config.local.js 未配置)");
+    }
+    if (!dataUrl || typeof dataUrl !== "string") throw new Error("dataUrl missing");
+
+    // 送信前にリサイズ（Vision は色情報を活用するためグレースケール/二値化はかけない）
+    let sendDataUrl = dataUrl;
+    try {
+      sendDataUrl = await preprocessImageForOCR(dataUrl, {
+        maxSize:   2000,
+        grayscale: false,
+        contrast:  false,
+        binarize:  false
+      });
+    } catch (e) {
+      try { console.warn("[Vision] preprocess (resize) failed, sending original:", e); } catch (_) {}
+      sendDataUrl = dataUrl;
+    }
+
+    showOCRProgress("Vision OCR 準備中…");
+    updateOCRProgress("画像をサーバへ送信中…", 0.15);
+
+    const body = JSON.stringify({
+      action:  "visionOcr",
+      token:   XCHANGE_SHEETS_CONFIG.token,
+      payload: { imageBase64: sendDataUrl, mode: "both" }
+    });
+    try { console.log("[Vision] visionOcr request bytes=" + body.length); } catch (_) {}
+
+    updateOCRProgress("Vision OCR 処理中…", 0.45);
+    const resp = await fetch(XCHANGE_SHEETS_CONFIG.endpoint, {
+      method:  "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body:    body
+    });
+    if (!resp.ok) throw new Error("Vision OCR HTTP " + resp.status);
+    const text = await resp.text();
+    let json;
+    try { json = JSON.parse(text); }
+    catch (_e) { throw new Error("Vision OCR: invalid JSON response (" + text.substring(0, 120) + ")"); }
+    if (!json || json.ok === false) {
+      throw new Error("Vision OCR error: " + (json && json.error || "unknown"));
+    }
+    updateOCRProgress("完了", 1);
+    setTimeout(hideOCRProgress, 600);
+    try { console.log("[Vision] OCR ok chars=" + (json.ocrText || "").length); } catch (_) {}
+    return json; // { ok, ocrText, expense, purchase }
+  }
+
+  // ===== v3.17 / v3.18.12 / v3.18.14: 実OCR実行 =====
+  // 戦略:
+  //   1. config.local.js 経由で Vision (Apps Script) が呼べる場合 → Vision を試す
+  //   2. Vision 失敗 (config 未配置 / ネット失敗 / Apps Script エラー) → Tesseract.js
+  // 既存呼出側 (setupExpenseUpload) は OCR 生テキスト (string) を受け取るだけなので
+  // 呼出シグネチャは変更しない。サーバ側抽出結果は _expenseUploadCtx に副次的に保持。
   async function runRealOCR(dataUrl) {
+    // --- v3.18.14: Vision OCR 優先試行 ---
+    if (XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.endpoint && XCHANGE_SHEETS_CONFIG.token) {
+      try {
+        try { console.log("[OCR] engine=Google Cloud Vision (DOCUMENT_TEXT_DETECTION)"); } catch (_) {}
+        const vr = await _runVisionOCR(dataUrl);
+        if (_expenseUploadCtx) {
+          _expenseUploadCtx.visionExpense  = vr.expense  || null;
+          _expenseUploadCtx.visionPurchase = vr.purchase || null;
+          _expenseUploadCtx.ocrEngine      = "vision";
+        }
+        return vr.ocrText || "";
+      } catch (visionErr) {
+        try { console.warn("[OCR] Vision failed → fallback to Tesseract.js:", visionErr && visionErr.message || visionErr); } catch (_) {}
+        // fall through to Tesseract
+      }
+    } else {
+      try { console.log("[OCR] config.local.js 未配置 → Tesseract.js を使用"); } catch (_) {}
+    }
+
+    // --- Tesseract.js + Canvas前処理 フォールバック (v3.18.12) ---
     showOCRProgress("OCRエンジン読込中");
     const Tess = await loadTesseract();
     updateOCRProgress("OCRエンジン読込完了", 0.05);
 
-    // v3.18.12: 前処理 (失敗時は元画像にフォールバック)
     updateOCRProgress("画像前処理中…", 0.08);
     let inputDataUrl = dataUrl;
     try {
@@ -2955,7 +3038,7 @@
         maxSize: 2000,
         grayscale: true,
         contrast: true,
-        binarize: false  // 感熱紙レシートで効くが、印字濃度が均一な請求書では逆効果になる事があるため既定 off
+        binarize: false
       });
     } catch (e) {
       try { console.warn("[OCR] preprocess threw, fallback to original:", e); } catch (_) {}
@@ -2965,12 +3048,17 @@
     const result = await Tess.recognize(inputDataUrl, TESSERACT_LANG, {
       logger: (m) => {
         const ja = TESSERACT_STATUS_JA[m.status] || m.status || "処理中";
-        // status によって 0..1 の進捗を出す
         updateOCRProgress(ja, m.progress || 0);
       }
     });
     updateOCRProgress("完了", 1);
     setTimeout(hideOCRProgress, 600);
+    if (_expenseUploadCtx) {
+      _expenseUploadCtx.ocrEngine = "tesseract";
+      // Tesseract 経路では Vision 抽出結果は持っていないことを明示
+      _expenseUploadCtx.visionExpense  = null;
+      _expenseUploadCtx.visionPurchase = null;
+    }
     return (result && result.data && result.data.text) ? result.data.text : "";
   }
 
@@ -3263,17 +3351,47 @@
       // v3.18.12: 抽出できなかったテキスト項目は空欄ではなく「要確認」プレースホルダで明示する。
       //           OCR原文 (ocrText) は必ず保存して確認画面に表示する。
       //           タイヤ仕入請求書風の場合は invoice 抽出器も追加で実行し ocrText に推定情報を併記する。
+      // v3.18.14: ctx.visionExpense (Apps Script 側で抽出済み) があり、かつ
+      //           ユーザーが OCR テキストを編集していなければ、そのサーバ抽出結果を
+      //           優先採用する。編集された場合 / Tesseract フォールバックの場合は
+      //           従来通りクライアント側抽出器で再構成する。
       source = "real";
       const baseText = ocrEdited || ctx.ocrText || "";
 
-      // 抽出
-      const amt    = extractAmountFromReceipt(baseText);
-      const taxRaw = extractTaxFromReceipt(baseText);
-      const vendor = extractVendorFromReceipt(baseText);
-      const pay    = extractPaymentFromReceipt(baseText);
-      const date   = extractDateFromReceipt(baseText) || todayKey();
-      const aiCands = classifyExpense(`${baseText} ${memo}`);
-      const top    = aiCands && aiCands[0];
+      const v = (!ocrEdited && ctx.visionExpense) ? ctx.visionExpense : null;
+
+      let amt, taxRaw, vendor, pay, date, aiCands, top;
+      if (v) {
+        // --- Apps Script (Google Cloud Vision) で抽出済みの値を採用 ---
+        try { console.log("[OCR] using server-side Vision extraction"); } catch (_) {}
+        amt    = {
+          amount:     Number(v.amount) || 0,
+          confidence: v.amountConfidence || (Number(v.amount) > 0 ? "high" : "none")
+        };
+        taxRaw = Number(v.tax) || 0;
+        vendor = (v.vendor && v.vendor !== "要確認")             ? v.vendor : "";
+        pay    = (v.paymentMethod && v.paymentMethod !== "要確認") ? v.paymentMethod : "";
+        date   = (v.date && v.date !== "要確認")                 ? v.date : todayKey();
+        // AI候補: サーバ候補 + クライアント分類器 のマージ (重複は cat キーで除去)
+        const clientCands = classifyExpense(`${baseText} ${memo}`);
+        const serverCands = Array.isArray(v.aiCandidates) ? v.aiCandidates : [];
+        const seen = new Set();
+        aiCands = [];
+        for (const c of serverCands.concat(clientCands)) {
+          if (!c || !c.cat || seen.has(c.cat)) continue;
+          seen.add(c.cat); aiCands.push(c);
+        }
+        top = aiCands[0] || null;
+      } else {
+        // --- Tesseract フォールバック / ユーザー編集 → クライアント抽出器 ---
+        amt    = extractAmountFromReceipt(baseText);
+        taxRaw = extractTaxFromReceipt(baseText);
+        vendor = extractVendorFromReceipt(baseText);
+        pay    = extractPaymentFromReceipt(baseText);
+        date   = extractDateFromReceipt(baseText) || todayKey();
+        aiCands = classifyExpense(`${baseText} ${memo}`);
+        top    = aiCands && aiCands[0];
+      }
 
       draft = newEmptyExpenseDraft();
       draft.receiptThumb   = "🧾";
@@ -3294,8 +3412,19 @@
       }
       draft.aiCandidates = aiCands;
       // 内容欄は OCR 全文ではなく、購入先/カテゴリから生成した短い要約。空なら「要確認」。
-      const summary = summarizeReceiptContent(vendor, top, !!baseText || !!memo);
-      draft.content = summary || "要確認";
+      // v3.18.14: Vision サーバ抽出に content がある場合はそれを優先する。
+      if (v && v.content && v.content !== "要確認") {
+        draft.content = v.content;
+      } else {
+        const summary = summarizeReceiptContent(vendor, top, !!baseText || !!memo);
+        draft.content = summary || "要確認";
+      }
+
+      // v3.18.14: Vision が hqCategory (本社推定科目) を返している場合は draft に保持。
+      //           既存レコード書込ロジック (line 1532 付近) で rec.hqCategory として読まれる。
+      if (v && v.hqCategory && v.hqCategory !== "要確認") {
+        draft.hqCategory = v.hqCategory;
+      }
 
       // v3.18.12: タイヤ仕入請求書風の場合は追加抽出して ocrText の冒頭に "推定情報" として併記
       let invoiceMemo = "";
@@ -3323,8 +3452,12 @@
       }
 
       // OCR原文は専用欄 (登録レコードの ocrText) — 生テキストは必ず保存
+      // v3.18.14: 使用 OCR エンジン (Google Cloud Vision / Tesseract.js) をヘッダに明示
+      const engineLabel = (ctx && ctx.ocrEngine === "vision")
+        ? "Google Cloud Vision (DOCUMENT_TEXT_DETECTION)"
+        : "Tesseract.js + Canvas前処理";
       draft.ocrText = baseText
-        ? "[実OCR読取 (Tesseract.js + Canvas前処理)]\n" + (invoiceMemo ? invoiceMemo : "") + "--------------------\n" + baseText
+        ? "[実OCR読取 (" + engineLabel + ")]\n" + (invoiceMemo ? invoiceMemo : "") + "--------------------\n" + baseText
         : (memo ? "[メモテキスト (画像OCR結果なし)]\n--------------------\n" + memo : "[OCR結果なし]");
       draft.memoText = memo;
       // 低信頼度フラグ: 確認画面で警告バナー表示 / 必須項目バリデーション強化
@@ -3568,6 +3701,8 @@
         // ====== 不変スナップショット (OCR/AI分類の記録のみ。最終値の参照には使わない) ======
         aiCategory:    draftExpense.aiCategory || categoryFinal,
         aiCandidates:  draftExpense.aiCandidates || [],
+        // v3.18.14: 本社推定科目 (Vision サーバ抽出が hqCategory を返した場合のみ非空)
+        hqCategory:    draftExpense.hqCategory || "",
         // v3.17.8: 手入力モードでは ocrText 必ず "" / ocrSource = "manual"
         ocrText:       isManualMode ? "" : (draftExpense.ocrText || ""),
         ocrSource:     isManualMode ? "manual" : (draftExpense.ocrSource || ""),

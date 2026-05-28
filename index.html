@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b3d91" />
+<title>X-Change | 吉田自動車工業</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body data-role="store">
+
+<header class="appbar">
+  <div class="appbar-inner">
+    <div class="brand">
+      <div class="brand-mark">X</div>
+      <div class="brand-text">
+        <div class="brand-title">X-Change</div>
+        <div class="brand-sub">吉田自動車工業 タイヤ販売管理</div>
+      </div>
+    </div>
+    <div class="role-switch" role="tablist" aria-label="画面切替">
+      <button class="role-btn active" data-role="store" role="tab" aria-selected="true">
+        <span class="role-icon" aria-hidden="true">🏪</span>
+        <span class="role-label">店舗</span>
+      </button>
+      <button class="role-btn" data-role="hq" role="tab" aria-selected="false">
+        <span class="role-icon" aria-hidden="true">🏢</span>
+        <span class="role-label">本社</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ===================== 店舗側 ===================== -->
+  <section class="role-pane" data-pane="store">
+
+    <!-- S1: ホーム -->
+    <div class="screen active" data-screen="store-home">
+      <div class="screen-pad">
+
+        <div class="store-greeting">
+          <div class="greeting-label">いらっしゃいませ、店長</div>
+          <h1 class="greeting-date" id="greetingDate">本日</h1>
+        </div>
+
+        <p class="biz-note">📡 店舗で登録された売上・経費は、本社側に <strong>即時反映</strong> されます。</p>
+
+        <button class="rejection-banner" id="rejectionBanner" data-go="store-rejections" hidden>
+          <div class="rb-icon" aria-hidden="true">⚠️</div>
+          <div class="rb-text">
+            <div class="rb-title">本社から修正依頼が届いています</div>
+            <div class="rb-sub"><span id="rbCount">0</span>件 ・ タップで確認</div>
+          </div>
+          <div class="rb-arrow" aria-hidden="true">›</div>
+        </button>
+
+        <h2 class="section-title">本日／当月のサマリー</h2>
+        <div class="kpi-row kpi-row-5 kpi-row-6">
+          <div class="kpi-mini sales">
+            <div class="km-label">本日売上</div>
+            <div class="km-value" id="todaySalesAmount">¥0</div>
+            <div class="km-sub" id="todaySalesCount">0件</div>
+          </div>
+          <div class="kpi-mini sales">
+            <div class="km-label">当月売上</div>
+            <div class="km-value" id="storeMonthSalesAmount">¥0</div>
+            <div class="km-sub" id="storeMonthSalesCount">0件</div>
+          </div>
+          <div class="kpi-mini expense">
+            <div class="km-label">本日経費</div>
+            <div class="km-value" id="todayExpenseAmount">¥0</div>
+            <div class="km-sub" id="todayExpenseCount">0件</div>
+          </div>
+          <div class="kpi-mini gross">
+            <div class="km-label">本日粗利益</div>
+            <div class="km-value" id="todayGross">¥0</div>
+            <div class="km-sub">概算</div>
+          </div>
+          <div class="kpi-mini pending">
+            <div class="km-label">未確認</div>
+            <div class="km-value" id="storePending">0</div>
+            <div class="km-sub">件</div>
+          </div>
+          <div class="kpi-mini reject">
+            <div class="km-label">修正依頼</div>
+            <div class="km-value" id="storeReject">0</div>
+            <div class="km-sub">件</div>
+          </div>
+        </div>
+
+        <h2 class="section-title">業務メニュー</h2>
+        <div class="action-list">
+          <button class="action-row primary-action sales" data-go="store-sales-voice">
+            <div class="ar-icon" aria-hidden="true">🎤</div>
+            <div class="ar-text">
+              <div class="ar-title">音声で売上登録</div>
+              <div class="ar-sub">タイヤ販売・工賃を音声で入力</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row primary-action expense" data-go="store-expense-upload">
+            <div class="ar-icon" aria-hidden="true">📷</div>
+            <div class="ar-text">
+              <div class="ar-title">経費を登録</div>
+              <div class="ar-sub">OCR / 手入力で経費を登録</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row primary-action purchase" data-go="store-purchase-upload">
+            <div class="ar-icon" aria-hidden="true">📦</div>
+            <div class="ar-text">
+              <div class="ar-title">仕入を登録</div>
+              <div class="ar-sub">タイヤ・部材の仕入を登録</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row info" data-go="store-today-status">
+            <div class="ar-icon" aria-hidden="true">📊</div>
+            <div class="ar-text">
+              <div class="ar-title">本日の状況</div>
+              <div class="ar-sub" id="actionTodayStatusSub">売上・経費・仕入・粗利益</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row info" data-go="store-month-status">
+            <div class="ar-icon" aria-hidden="true">📈</div>
+            <div class="ar-text">
+              <div class="ar-title">今月の状況</div>
+              <div class="ar-sub" id="actionMonthStatusSub">月初〜今日の累計</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row info" data-go="store-today-sales">
+            <div class="ar-icon" aria-hidden="true">📋</div>
+            <div class="ar-text">
+              <div class="ar-title">本日の売上一覧</div>
+              <div class="ar-sub" id="actionSalesSub">0件</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row info" data-go="store-today-expenses">
+            <div class="ar-icon" aria-hidden="true">🧾</div>
+            <div class="ar-text">
+              <div class="ar-title">本日の経費一覧</div>
+              <div class="ar-sub" id="actionExpenseSub">0件</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row alert" data-go="store-rejections">
+            <div class="ar-icon" aria-hidden="true">✏️</div>
+            <div class="ar-text">
+              <div class="ar-title">本社からの修正依頼</div>
+              <div class="ar-sub" id="actionRejectSub">0件</div>
+            </div>
+            <span class="ar-badge" id="actionRejectBadge" hidden>0</span>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+          <button class="action-row" data-go="store-master">
+            <div class="ar-icon" aria-hidden="true">📚</div>
+            <div class="ar-text">
+              <div class="ar-title">マスタ管理</div>
+              <div class="ar-sub">顧客 / 商品 / 経費科目 / 支払方法</div>
+            </div>
+            <div class="ar-arrow" aria-hidden="true">›</div>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- S2: 売上 音声入力 -->
+    <div class="screen" data-screen="store-sales-voice">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">売上 音声入力</div>
+      </div>
+      <div class="screen-pad">
+        <!-- v3.11: スマホ標準キーボードの音声入力 = メイン導線 -->
+        <div class="voice-mic-guide">
+          <div class="vmg-line">
+            <span class="vmg-icon" aria-hidden="true">📱</span>
+            <strong>下の入力欄をタップ</strong> するとスマホのキーボードが開きます。<br>
+            キーボード内の <strong>マイクボタン 🎤</strong> を押して売上内容を話してください。
+          </div>
+          <div class="vmg-sub">
+            話し終わったら 「🤖 AIで分解する」 ボタンで売上項目に自動分解します。
+          </div>
+        </div>
+
+        <!-- v3.17.7: 本番画面では固定サンプル例は表示せず、説明文と注意のみを残す -->
+        <div class="voice-tips-block">
+          <div class="vtb-desc">
+            <strong>項目名に続けて、短く区切って話してください。</strong>
+            話し終わったら内容を確認し、必要に応じて手で修正してください。
+          </div>
+          <div class="vtb-note">
+            ⚠️ <strong>車両番号は音声認識で間違いやすいため、登録確認画面で必ず確認してください。</strong>必要に応じて手入力で修正できます。
+          </div>
+          <div class="vtb-default">
+            ℹ️ <strong>日付・店舗名・担当者</strong> はシステム側で自動設定（本日 / 吉田自動車工業 X-Change本店 / 店長）。登録確認画面で編集可能。
+          </div>
+        </div>
+
+        <!-- メイン入力欄 (大型・タップでスマホキーボード起動) -->
+        <div class="form-block">
+          <label class="form-label" for="voiceTranscript">📝 音声テキスト</label>
+          <textarea id="voiceTranscript"
+            class="form-input voice-textarea-v2"
+            rows="10"
+            lang="ja-JP"
+            inputmode="text"
+            enterkeyhint="done"
+            autocomplete="off"
+            placeholder="ここをタップして、スマホキーボードのマイクボタンから音声入力してください"></textarea>
+        </div>
+
+        <!-- 補助操作: スマホ音声入力 + サンプル + テンプレート + クリア -->
+        <div class="voice-tools voice-tools-v2">
+          <button class="btn primary" id="useKeyboardVoiceBtn" type="button">
+            📱 スマホ音声入力を使う
+          </button>
+          <button class="btn ghost small" id="templateVoiceBtn" type="button">📝 入力テンプレートを入れる</button>
+          <button class="btn ghost small" id="clearVoiceBtn" type="button">クリア</button>
+        </div>
+
+        <div class="ai-loading" id="salesAILoading" hidden>
+          <div class="spinner"></div>
+          <div>AIが項目を分解中…</div>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn ghost" data-go="store-home">キャンセル</button>
+          <button class="btn primary big" id="parseBtn">🤖 AIで分解する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S3: 売上 確認画面 -->
+    <div class="screen" data-screen="store-sales-confirm">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-sales-voice" aria-label="戻る">←</button>
+        <div class="screen-header-title">売上 登録前確認</div>
+      </div>
+      <div class="screen-pad">
+        <div class="ai-banner">
+          🤖 音声入力の内容をAIが分解しました。<br>
+          <strong>登録前に、金額・数量・支払方法・車両番号を必ず確認してください。</strong>
+        </div>
+
+        <!-- 大型サマリーカード: 合計金額・数量・単価 (★ 要確認: 音声誤認識しやすい項目) -->
+        <div class="big-summary">
+          <div class="bs-amount-block">
+            <div class="bs-label">合計金額 <span class="bs-warn-mini">⚠️ 要確認</span></div>
+            <div class="bs-amount-row">
+              <span class="bs-currency">¥</span>
+              <input type="number" id="confTotal" class="bs-amount" inputmode="numeric" placeholder="0" />
+            </div>
+          </div>
+          <div class="bs-grid">
+            <div class="bs-cell">
+              <div class="bs-label">数量 <span class="bs-warn-mini">⚠️</span></div>
+              <input type="number" id="confQty" class="bs-num" inputmode="numeric" placeholder="1" />
+            </div>
+            <div class="bs-cell">
+              <div class="bs-label">単価 <span class="bs-warn-mini">⚠️</span></div>
+              <input type="number" id="confUnitPrice" class="bs-num" inputmode="numeric" placeholder="0" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 支払方法 -->
+        <h3 class="conf-section-title">支払方法 <span class="form-warn-mini">⚠️ 要確認</span></h3>
+        <div class="payment-methods" id="paymentMethods" role="radiogroup">
+          <button class="pay-btn" data-pay="現金">現金</button>
+          <button class="pay-btn" data-pay="クレジットカード">カード</button>
+          <button class="pay-btn" data-pay="QR決済">QR決済</button>
+          <button class="pay-btn" data-pay="銀行振込">振込</button>
+          <button class="pay-btn" data-pay="売掛">売掛</button>
+          <button class="pay-btn" data-pay="その他">その他</button>
+        </div>
+
+        <!-- 売上区分 (複数選択) -->
+        <h3 class="conf-section-title">売上区分（複数選択可）</h3>
+        <div class="cat-all" id="salesCatChips"></div>
+
+        <!-- 基本情報 -->
+        <h3 class="conf-section-title">基本情報</h3>
+        <div class="grid-2">
+          <div class="col-span-2">
+            <label class="form-label">日付</label>
+            <input type="date" id="confDate" class="form-input" />
+          </div>
+          <div class="col-span-2">
+            <label class="form-label">店舗名</label>
+            <input type="text" id="confStoreName" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">担当者</label>
+            <input type="text" id="confStaff" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">お客様名</label>
+            <input type="text" id="confCustomer" class="form-input" placeholder="例：田中様" list="customerSuggestList" autocomplete="off" />
+            <datalist id="customerSuggestList"></datalist>
+          </div>
+        </div>
+
+        <!-- 車両情報 -->
+        <h3 class="conf-section-title">車両情報</h3>
+        <div class="grid-2">
+          <div>
+            <label class="form-label">車種</label>
+            <input type="text" id="confCarModel" class="form-input" placeholder="例：プリウス" />
+          </div>
+          <div>
+            <label class="form-label">車両番号 <span class="form-warn-mini">⚠️ 要確認</span></label>
+            <input type="text" id="confCarNumber" class="form-input" placeholder="例：品川 300 あ 12-34（空欄でも登録可）" />
+            <div class="form-warn-note">⚠️ 車両番号は音声入力で間違いやすいため、必要に応じて手入力で修正してください。空欄のままでも登録できます。</div>
+          </div>
+        </div>
+
+        <!-- 商品・サービス -->
+        <h3 class="conf-section-title">商品・サービス</h3>
+        <div class="grid-2">
+          <div class="col-span-2">
+            <label class="form-label">商品名</label>
+            <input type="text" id="confProductName" class="form-input" placeholder="例:ブリヂストン レグノ GR-XII" />
+          </div>
+          <div class="col-span-2">
+            <label class="form-label">タイヤサイズ <span class="form-warn-mini">⚠️ 要確認</span></label>
+            <input type="text" id="confTireSize" class="form-input" placeholder="例:195/65R15" />
+          </div>
+        </div>
+
+        <!-- 作業内容 / 備考 -->
+        <div class="form-block">
+          <label class="form-label">作業内容</label>
+          <textarea id="confWorkContent" class="form-input" rows="2" placeholder="例：タイヤ4本交換、バランス調整、廃タイヤ処分"></textarea>
+        </div>
+
+        <div class="form-block">
+          <label class="form-label">備考</label>
+          <textarea id="confNote" class="form-input" rows="2" placeholder="任意"></textarea>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn ghost" data-go="store-sales-voice">🎤 音声入力へ戻る</button>
+          <button class="btn primary big" id="confirmSalesBtn">✓ 確認して登録</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S4: 売上 完了 -->
+    <div class="screen" data-screen="store-sales-done">
+      <div class="screen-pad center-pad">
+        <div class="done-mark">✓</div>
+        <h2 class="done-title">売上を登録しました</h2>
+        <p class="done-sub">本社に即時反映されました。</p>
+        <div class="done-amount" id="doneSalesAmount">¥0</div>
+        <div class="done-actions">
+          <button class="btn primary" data-go="store-sales-voice">続けて売上入力</button>
+          <button class="btn ghost" data-go="store-home">ホームへ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S5: 経費 レシート登録（v3.1: 画像 + メモ + OCR + AI分類） -->
+    <div class="screen" data-screen="store-expense-upload">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">経費 レシート登録</div>
+      </div>
+      <div class="screen-pad">
+
+        <!-- v3.17.8: 登録方法 選択 (OCR / 手入力) -->
+        <div id="expenseModePicker">
+          <p class="biz-note">経費登録方法を選んでください。</p>
+          <p class="ocr-caution-note">OCRは補助機能です。金額や購入先が間違う場合があります。<strong>手入力で登録する場合は、入力した内容がそのまま登録されます。</strong></p>
+          <button type="button" class="mode-card" data-mode="ocr">
+            <span class="mc-icon" aria-hidden="true">📸</span>
+            <span class="mc-body">
+              <span class="mc-title">① レシートをOCRで読み取る</span>
+              <span class="mc-desc">レシート画像から文字を読み取り、AIが経費科目を分類します。読み取り結果は登録前に確認・修正できます。</span>
+            </span>
+          </button>
+          <button type="button" class="mode-card" data-mode="manual">
+            <span class="mc-icon" aria-hidden="true">✍️</span>
+            <span class="mc-body">
+              <span class="mc-title">② 手入力で登録する</span>
+              <span class="mc-desc">金額・購入先・内容を手入力します。レシート画像は証憑として任意添付。OCR推定値・サンプル値は使用しません。</span>
+            </span>
+          </button>
+        </div>
+
+        <!-- v3.17.8: OCR モード セクション -->
+        <div id="expenseOcrSection" hidden>
+          <button type="button" class="btn ghost small back-to-mode" data-back-to-mode="">← 登録方法 選択へ戻る</button>
+          <div class="ocr-status-chip" id="ocrSourceStatus" data-state="idle">未読取</div>
+
+          <!-- レシート画像 -->
+          <h3 class="conf-section-title">📷 レシート画像</h3>
+          <label class="upload-card" for="receiptInput">
+            <div class="upload-icon" aria-hidden="true">📷</div>
+            <div class="upload-text">
+              <div class="upload-title">タップして撮影 / 画像を選択</div>
+              <div class="upload-sub">JPEG / PNG / HEIC ・ ブラウザ内でOCR実行（画像は外部送信されません）</div>
+            </div>
+            <input id="receiptInput" type="file" accept="image/*" capture="environment" hidden />
+          </label>
+
+          <div class="receipt-preview" id="receiptPreview" hidden>
+            <img id="receiptImg" alt="レシート" />
+            <button class="btn ghost small" id="reUploadBtn">差し替える</button>
+          </div>
+
+          <!-- v3.17.7: サンプルレシートは開発者用デモのみ。本番表示では非表示 -->
+          <div class="sample-receipts dev-only" hidden>
+            <div class="sample-label">サンプルレシートから選ぶ（デモ用・固定OCRテキスト）</div>
+            <div class="sample-grid" id="sampleReceipts"></div>
+          </div>
+
+          <!-- 経費内容メモ (OCR 補助メモ・任意) -->
+          <h3 class="conf-section-title">📝 経費内容メモ（任意）</h3>
+          <p class="form-sub">OCR読取の補助メモとして、購入内容を追加で入力できます。</p>
+          <div class="voice-tools">
+            <button class="btn ghost small" id="clearExpenseTextBtn">クリア</button>
+          </div>
+          <textarea id="expenseMemoText" class="form-input voice-textarea" rows="3"
+            placeholder="例:本日、ENEOSでガソリン代5,000円を現金で支払い"></textarea>
+
+          <!-- OCR進捗バー -->
+          <div class="ocr-progress-block" id="ocrProgressBlock" hidden>
+            <div class="ocr-progress-head">
+              <span class="ocr-progress-label" id="ocrProgressLabel">OCR準備中…</span>
+              <span class="ocr-progress-percent" id="ocrProgressPercent">0%</span>
+            </div>
+            <div class="ocr-progress-bar"><div class="ocr-progress-bar-fill" id="ocrProgressBarFill" style="width:0%"></div></div>
+            <div class="ocr-progress-note">初回は日本語学習モデル（約15MB）をダウンロードします。2回目以降はブラウザキャッシュから瞬時に起動します。</div>
+          </div>
+
+          <!-- OCR結果プレビュー -->
+          <div class="ocr-card" id="ocrPreviewCard" hidden>
+            <div class="ocr-card-header">
+              <div class="ocr-label">🔍 OCR読取結果</div>
+              <span class="ocr-source-badge" id="ocrSourceBadge" data-source="real">実OCR読取</span>
+            </div>
+            <p class="ocr-warn-note">⚠ OCR読取はレシート画像の明るさ、手ブレ、文字の向き、印字の薄さにより精度が変わります。読み取り結果は登録前に必ず確認・修正してください。下のテキストは直接編集でき、編集内容に応じて項目プレビューも更新されます。</p>
+            <textarea id="ocrPreviewText" class="ocr-text-edit form-input" rows="6" lang="ja-JP" placeholder="OCRで読み取ったテキストがここに表示されます。誤読があればこのまま編集してください。"></textarea>
+            <div class="ocr-fields-preview" id="ocrFieldsPreview"></div>
+          </div>
+
+          <div class="ai-loading" id="ocrLoading" hidden>
+            <div class="spinner"></div>
+            <div id="ocrLoadingLabel">OCRで読み取り中…</div>
+          </div>
+
+          <!-- アクションバー -->
+          <div class="action-bar">
+            <button class="btn ghost" id="ocrReadBtn">🔍 OCR読取</button>
+            <button class="btn primary big" id="aiClassifyBtn">🤖 AI分類して確認</button>
+          </div>
+        </div>
+
+        <!-- v3.17.8: 手入力モード セクション -->
+        <div id="expenseManualSection" hidden>
+          <button type="button" class="btn ghost small back-to-mode" data-back-to-mode="">← 登録方法 選択へ戻る</button>
+          <p class="ocr-caution-note">✍️ <strong>手入力モード</strong>: 画面に入力した内容がそのまま登録されます。OCR推定値・サンプル値は一切使用されません。</p>
+
+          <div class="form-block">
+            <label class="form-label" for="manExpDate">経費日 <span class="req">*</span></label>
+            <input type="date" id="manExpDate" class="form-input" />
+          </div>
+          <div class="form-block">
+            <label class="form-label" for="manExpVendor">購入先 <span class="req">*</span></label>
+            <input type="text" id="manExpVendor" class="form-input" placeholder="例: ENEOS 田中SS / カインズ" autocomplete="off" />
+          </div>
+          <div class="form-block">
+            <label class="form-label" for="manExpContent">内容</label>
+            <input type="text" id="manExpContent" class="form-input" placeholder="例: ガソリン代 / 工具購入 / 店舗備品" autocomplete="off" />
+          </div>
+          <div class="grid-2">
+            <div>
+              <label class="form-label" for="manExpAmount">金額(税込) <span class="req">*</span></label>
+              <input type="text" id="manExpAmount" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 3000" />
+            </div>
+            <div>
+              <label class="form-label" for="manExpTax">消費税(円)</label>
+              <input type="text" id="manExpTax" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 273" />
+            </div>
+          </div>
+          <div class="form-block">
+            <label class="form-label">支払方法 <span class="req">*</span></label>
+            <div class="payment-methods" id="manExpPayments" role="radiogroup">
+              <button class="pay-btn" type="button" data-pay="現金">現金</button>
+              <button class="pay-btn" type="button" data-pay="クレジットカード">カード</button>
+              <button class="pay-btn" type="button" data-pay="銀行振込">振込</button>
+              <button class="pay-btn" type="button" data-pay="口座引落">引落</button>
+              <button class="pay-btn" type="button" data-pay="その他">その他</button>
+            </div>
+          </div>
+          <div class="form-block">
+            <label class="form-label">経費科目 <span class="req">*</span></label>
+            <div class="cat-all" id="manExpCategoryChips"></div>
+            <p class="form-sub">本社確定科目は、本社が確認時に設定します（未設定で登録可）。</p>
+          </div>
+
+          <!-- レシート画像 (任意添付) -->
+          <div class="form-block">
+            <label class="form-label">レシート画像（任意・証憑として添付）</label>
+            <label class="upload-card" for="manExpReceipt">
+              <div class="upload-icon" aria-hidden="true">📷</div>
+              <div class="upload-text">
+                <div class="upload-title">タップして撮影 / 画像を選択</div>
+                <div class="upload-sub">添付しなくても登録できます</div>
+              </div>
+              <input id="manExpReceipt" type="file" accept="image/*" capture="environment" hidden />
+            </label>
+            <div class="receipt-preview" id="manExpReceiptPreview" hidden>
+              <img id="manExpReceiptImg" alt="レシート" />
+              <button type="button" class="btn ghost small" id="manExpReceiptClear">画像を外す</button>
+            </div>
+          </div>
+
+          <div class="form-block">
+            <label class="form-label" for="manExpNote">備考</label>
+            <textarea id="manExpNote" class="form-input" rows="2" placeholder="任意"></textarea>
+          </div>
+
+          <div class="action-bar">
+            <button type="button" class="btn ghost" data-back-to-mode="">キャンセル</button>
+            <button type="button" class="btn primary big" id="manExpNextBtn">次へ確認</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- S6: 経費 登録前確認（v3.1: 大型サマリー + AI/本社分離） -->
+    <div class="screen" data-screen="store-expense-confirm">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-expense-upload" aria-label="戻る">←</button>
+        <div class="screen-header-title">経費 登録前確認</div>
+      </div>
+      <div class="screen-pad">
+        <div class="ai-banner" id="expenseAiBanner">
+          🤖 AIが分類しました。<strong>必ず内容をご確認ください。</strong>
+        </div>
+        <p class="ocr-caution-note">⚠ ブラウザOCRはレシートの角度・明るさ・文字の小ささにより誤認識する場合があります。<strong>金額・購入先・経費科目は必ず確認してください。</strong></p>
+
+        <!-- レシート画像 -->
+        <div class="receipt-thumb" id="receiptThumb"></div>
+
+        <!-- 大型サマリー: 金額・購入先・経費科目 -->
+        <div class="big-summary expense">
+          <div class="bs-amount-block">
+            <div class="bs-label">金額（税込）</div>
+            <div class="bs-amount-row">
+              <span class="bs-currency">¥</span>
+              <input type="text" id="confExpenseAmount" class="bs-amount" inputmode="numeric" autocomplete="off" placeholder="例: 3000" />
+            </div>
+          </div>
+          <div class="bs-grid">
+            <div class="bs-cell">
+              <div class="bs-label">購入先</div>
+              <input type="text" id="confExpenseVendor" class="bs-text" placeholder="例:カインズ" />
+            </div>
+            <div class="bs-cell">
+              <div class="bs-label">経費科目</div>
+              <div class="bs-cat-display" id="confExpenseCatDisplay">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI分類候補 -->
+        <h3 class="conf-section-title">AI分類候補（タップで選択）</h3>
+        <div class="cat-candidates" id="catCandidates"></div>
+        <div class="form-sub">他のカテゴリ:</div>
+        <div class="cat-all" id="catAll"></div>
+        <div class="ai-snapshot" id="aiSnapshotNote"></div>
+
+        <!-- OCR読取結果 -->
+        <h3 class="conf-section-title">🔍 OCR読取結果</h3>
+        <div class="ocr-card">
+          <pre class="ocr-text" id="ocrText"></pre>
+        </div>
+
+        <!-- 支払方法 -->
+        <h3 class="conf-section-title">支払方法</h3>
+        <div class="payment-methods" id="expensePaymentMethods" role="radiogroup">
+          <button class="pay-btn" data-pay="現金">現金</button>
+          <button class="pay-btn" data-pay="クレジットカード">カード</button>
+          <button class="pay-btn" data-pay="銀行振込">振込</button>
+          <button class="pay-btn" data-pay="口座引落">引落</button>
+          <button class="pay-btn" data-pay="その他">その他</button>
+        </div>
+
+        <!-- 基本情報 -->
+        <h3 class="conf-section-title">基本情報</h3>
+        <div class="grid-2">
+          <div class="col-span-2">
+            <label class="form-label">日付</label>
+            <input type="date" id="confExpenseDate" class="form-input" />
+          </div>
+          <div class="col-span-2">
+            <label class="form-label">店舗名</label>
+            <input type="text" id="confExpenseStoreName" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">担当者</label>
+            <input type="text" id="confExpenseStaff" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">消費税(円)</label>
+            <input type="text" id="confExpenseTax" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 273" />
+          </div>
+        </div>
+
+        <!-- 内容 / 備考 -->
+        <div class="form-block">
+          <label class="form-label">内容</label>
+          <textarea id="confExpenseContent" class="form-input" rows="2" placeholder="例:工具・パーツクリーナー・軍手"></textarea>
+        </div>
+
+        <div class="form-block">
+          <label class="form-label">備考</label>
+          <textarea id="confExpenseNote" class="form-input" rows="2" placeholder="任意"></textarea>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn ghost" data-go="store-expense-upload">やり直す</button>
+          <button class="btn primary big" id="confirmExpenseBtn">この内容で登録</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S7: 経費 完了 -->
+    <div class="screen" data-screen="store-expense-done">
+      <div class="screen-pad center-pad">
+        <div class="done-mark">✓</div>
+        <h2 class="done-title">経費を登録しました</h2>
+        <p class="done-sub">本社に即時反映されました。</p>
+        <div class="done-amount" id="doneExpenseAmount">¥0</div>
+        <div class="done-actions">
+          <button class="btn primary" data-go="store-expense-upload">続けて経費入力</button>
+          <button class="btn ghost" data-go="store-home">ホームへ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- S8: 本日の売上一覧 -->
+    <div class="screen" data-screen="store-today-sales">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">本日の売上一覧</div>
+      </div>
+      <div class="screen-pad">
+        <div class="list-summary sales">
+          <div class="ls-label">本日の売上合計</div>
+          <div class="ls-amount" id="todaySalesListTotal">¥0</div>
+          <div class="ls-sub" id="todaySalesListCount">0件</div>
+        </div>
+        <div class="recent-list" id="todaySalesList"></div>
+      </div>
+    </div>
+
+    <!-- S9: 本日の経費一覧 -->
+    <div class="screen" data-screen="store-today-expenses">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">本日の経費一覧</div>
+      </div>
+      <div class="screen-pad">
+        <div class="list-summary expense">
+          <div class="ls-label">本日の経費合計</div>
+          <div class="ls-amount" id="todayExpenseListTotal">¥0</div>
+          <div class="ls-sub" id="todayExpenseListCount">0件</div>
+        </div>
+        <div class="recent-list" id="todayExpenseList"></div>
+      </div>
+    </div>
+
+    <!-- S10: 修正依頼一覧 -->
+    <div class="screen" data-screen="store-rejections">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">本社からの修正依頼</div>
+      </div>
+      <div class="screen-pad">
+        <p class="lead-alert" id="rejectionLead">本社から修正依頼が届いています。内容を確認し、必要な項目を修正して再提出してください。</p>
+        <div class="recent-list rejection-list-v2" id="rejectionsList"></div>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): 本日の状況 -->
+    <div class="screen" data-screen="store-today-status">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">本日の状況</div>
+      </div>
+      <div class="screen-pad">
+        <div class="status-date-row" id="todayStatusDate">—</div>
+        <div class="status-grid">
+          <div class="status-card sales"><div class="sc-label">本日売上</div><div class="sc-value" id="tsSalesAmt">¥0</div><div class="sc-sub" id="tsSalesCnt">0件</div></div>
+          <div class="status-card expense"><div class="sc-label">本日経費</div><div class="sc-value" id="tsExpAmt">¥0</div><div class="sc-sub" id="tsExpCnt">0件</div></div>
+          <div class="status-card purchase"><div class="sc-label">本日仕入</div><div class="sc-value" id="tsPurAmt">¥0</div><div class="sc-sub" id="tsPurCnt">0件</div></div>
+          <div class="status-card gross highlight"><div class="sc-label">本日粗利益(概算)</div><div class="sc-value" id="tsGross">¥0</div><div class="sc-sub">売上 − 経費 − 仕入</div></div>
+          <div class="status-card pending"><div class="sc-label">未確認</div><div class="sc-value" id="tsPending">0</div><div class="sc-sub">件</div></div>
+          <div class="status-card reject"><div class="sc-label">修正依頼</div><div class="sc-value" id="tsReject">0</div><div class="sc-sub">件</div></div>
+        </div>
+        <p class="form-sub" style="margin-top:14px">粗利益は概算です。本社側の確定計算は決算用集計で別途行います。</p>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): 今月の状況 -->
+    <div class="screen" data-screen="store-month-status">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">今月の状況</div>
+      </div>
+      <div class="screen-pad">
+        <div class="status-date-row">
+          対象年月: <strong id="msYM">—</strong>
+          ／ 月初: <strong id="msFirst">—</strong>
+          ／ 本日: <strong id="msToday">—</strong>
+        </div>
+        <div class="status-grid">
+          <div class="status-card sales"><div class="sc-label">月初〜本日 売上</div><div class="sc-value" id="msSalesAmt">¥0</div><div class="sc-sub" id="msSalesCnt">0件</div></div>
+          <div class="status-card expense"><div class="sc-label">月初〜本日 経費</div><div class="sc-value" id="msExpAmt">¥0</div><div class="sc-sub" id="msExpCnt">0件</div></div>
+          <div class="status-card purchase"><div class="sc-label">月初〜本日 仕入</div><div class="sc-value" id="msPurAmt">¥0</div><div class="sc-sub" id="msPurCnt">0件</div></div>
+          <div class="status-card gross highlight"><div class="sc-label">月初〜本日 粗利益(概算)</div><div class="sc-value" id="msGross">¥0</div><div class="sc-sub">売上 − 経費 − 仕入</div></div>
+          <div class="status-card pending"><div class="sc-label">未確認</div><div class="sc-value" id="msPending">0</div><div class="sc-sub">件</div></div>
+          <div class="status-card reject"><div class="sc-label">修正依頼</div><div class="sc-value" id="msReject">0</div><div class="sc-sub">件</div></div>
+        </div>
+        <p class="form-sub" style="margin-top:14px">店長向けの簡易集計です。決算用の詳細集計は本社側で別途行います。</p>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): 仕入登録 -->
+    <div class="screen" data-screen="store-purchase-upload">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">仕入登録</div>
+      </div>
+      <div class="screen-pad">
+        <p class="biz-note">📦 タイヤや部材の仕入を登録します。請求書番号・支払予定日・支払ステータスは本社が後で設定します。</p>
+        <div class="form-block">
+          <label class="form-label" for="purDate">仕入日 <span class="req">*</span></label>
+          <input type="date" id="purDate" class="form-input" />
+        </div>
+        <div class="form-block">
+          <label class="form-label" for="purVendor">仕入先 <span class="req">*</span></label>
+          <input type="text" id="purVendor" class="form-input" placeholder="例: ブリヂストンタイヤジャパン" autocomplete="off" />
+        </div>
+        <div class="form-block">
+          <label class="form-label" for="purProductName">商品名 <span class="req">*</span></label>
+          <input type="text" id="purProductName" class="form-input" placeholder="例: レグノGR-XII" list="purProductList" autocomplete="off" />
+          <datalist id="purProductList"></datalist>
+        </div>
+        <div class="form-block">
+          <label class="form-label" for="purTireSize">タイヤサイズ</label>
+          <input type="text" id="purTireSize" class="form-input" placeholder="例: 195/65R15" autocomplete="off" />
+        </div>
+        <div class="grid-2">
+          <div>
+            <label class="form-label" for="purQty">数量 <span class="req">*</span></label>
+            <input type="text" id="purQty" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 4" />
+          </div>
+          <div>
+            <label class="form-label" for="purUnitPrice">単価</label>
+            <input type="text" id="purUnitPrice" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 7716" />
+          </div>
+        </div>
+        <div class="form-block">
+          <label class="form-label" for="purTotal">仕入合計(税込) <span class="req">*</span></label>
+          <input type="text" id="purTotal" class="form-input" inputmode="numeric" autocomplete="off" placeholder="例: 185000" />
+        </div>
+        <div class="form-block">
+          <label class="form-label">支払方法 <span class="req">*</span></label>
+          <div class="payment-methods" id="purPayments" role="radiogroup">
+            <button class="pay-btn" type="button" data-pay="現金">現金</button>
+            <button class="pay-btn" type="button" data-pay="カード">カード</button>
+            <button class="pay-btn" type="button" data-pay="振込">振込</button>
+            <button class="pay-btn" type="button" data-pay="売掛">売掛</button>
+            <button class="pay-btn" type="button" data-pay="引落">引落</button>
+            <button class="pay-btn" type="button" data-pay="その他">その他</button>
+          </div>
+        </div>
+        <div class="form-block">
+          <label class="form-label" for="purNote">備考</label>
+          <textarea id="purNote" class="form-input" rows="2" placeholder="任意"></textarea>
+        </div>
+        <div class="action-bar">
+          <button class="btn ghost" type="button" data-go="store-home">キャンセル</button>
+          <button class="btn primary big" type="button" id="purNextBtn">次へ確認</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): 仕入 登録前確認 -->
+    <div class="screen" data-screen="store-purchase-confirm">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-purchase-upload" aria-label="戻る">←</button>
+        <div class="screen-header-title">仕入 登録前確認</div>
+      </div>
+      <div class="screen-pad">
+        <div class="ai-banner">必ず内容をご確認ください。</div>
+        <div class="big-summary expense">
+          <div class="bs-amount-block">
+            <div class="bs-label">仕入合計(税込)</div>
+            <div class="bs-amount-row">
+              <span class="bs-currency">¥</span>
+              <input type="text" id="cpurTotal" class="bs-amount" inputmode="numeric" autocomplete="off" />
+            </div>
+          </div>
+          <div class="bs-grid">
+            <div class="bs-cell">
+              <div class="bs-label">仕入先</div>
+              <input type="text" id="cpurVendor" class="bs-text" />
+            </div>
+            <div class="bs-cell">
+              <div class="bs-label">支払方法</div>
+              <div class="bs-cat-display" id="cpurPayDisplay">—</div>
+            </div>
+          </div>
+        </div>
+        <h3 class="conf-section-title">支払方法</h3>
+        <div class="payment-methods" id="cpurPayments" role="radiogroup">
+          <button class="pay-btn" type="button" data-pay="現金">現金</button>
+          <button class="pay-btn" type="button" data-pay="カード">カード</button>
+          <button class="pay-btn" type="button" data-pay="振込">振込</button>
+          <button class="pay-btn" type="button" data-pay="売掛">売掛</button>
+          <button class="pay-btn" type="button" data-pay="引落">引落</button>
+          <button class="pay-btn" type="button" data-pay="その他">その他</button>
+        </div>
+        <h3 class="conf-section-title">基本情報</h3>
+        <div class="grid-2">
+          <div class="col-span-2">
+            <label class="form-label">仕入日</label>
+            <input type="date" id="cpurDate" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">商品名</label>
+            <input type="text" id="cpurProductName" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">タイヤサイズ</label>
+            <input type="text" id="cpurTireSize" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">数量</label>
+            <input type="text" id="cpurQty" class="form-input" inputmode="numeric" />
+          </div>
+          <div>
+            <label class="form-label">単価</label>
+            <input type="text" id="cpurUnitPrice" class="form-input" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="form-block">
+          <label class="form-label">備考</label>
+          <textarea id="cpurNote" class="form-input" rows="2"></textarea>
+        </div>
+        <div class="action-bar">
+          <button class="btn ghost" type="button" data-go="store-purchase-upload">← 修正に戻る</button>
+          <button class="btn primary big" type="button" id="confirmPurchaseBtn">この内容で登録</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): 仕入 登録完了 -->
+    <div class="screen" data-screen="store-purchase-done">
+      <div class="screen-pad center-pad">
+        <div class="done-mark">✓</div>
+        <h2 class="done-title">仕入を登録しました</h2>
+        <p class="done-sub">本社に即時反映されました。</p>
+        <div class="done-amount" id="donePurchaseAmount">¥0</div>
+        <div class="done-actions">
+          <button class="btn primary" data-go="store-purchase-upload">続けて仕入入力</button>
+          <button class="btn ghost" data-go="store-home">ホームへ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- v3.18.0 (第1分割): マスタ管理 -->
+    <div class="screen" data-screen="store-master">
+      <div class="screen-header">
+        <button class="back-btn" data-go="store-home" aria-label="戻る">←</button>
+        <div class="screen-header-title">マスタ管理</div>
+      </div>
+      <div class="screen-pad">
+        <p class="biz-note">📚 店舗側で使うマスタを管理します。Googleスプレッドシートへの完全同期は次フェーズで対応します。</p>
+        <div class="master-tabs">
+          <button class="master-tab active" data-master-tab="customer">顧客</button>
+          <button class="master-tab" data-master-tab="product">商品</button>
+          <button class="master-tab" data-master-tab="expCat">経費科目</button>
+          <button class="master-tab" data-master-tab="payment">支払方法</button>
+        </div>
+
+        <!-- 顧客マスタ -->
+        <div class="master-pane" data-master-pane="customer">
+          <h3 class="conf-section-title">顧客マスタ</h3>
+          <div class="form-block">
+            <input type="text" id="custSearch" class="form-input" placeholder="顧客名・電話番号で検索" autocomplete="off" />
+          </div>
+          <div class="master-list" id="custList"></div>
+          <div class="master-form">
+            <h4 class="conf-section-title">新規追加 / 編集</h4>
+            <input type="hidden" id="custEditId" value="" />
+            <div class="form-block"><label class="form-label">顧客名 <span class="req">*</span></label><input type="text" id="custName" class="form-input" autocomplete="off" /></div>
+            <div class="grid-2">
+              <div><label class="form-label">電話番号</label><input type="tel" id="custPhone" class="form-input" autocomplete="off" placeholder="例: 03-1234-5678" /></div>
+              <div><label class="form-label">車種</label><input type="text" id="custCarModel" class="form-input" autocomplete="off" /></div>
+              <div><label class="form-label">車両番号</label><input type="text" id="custCarNumber" class="form-input" autocomplete="off" /></div>
+              <div><label class="form-label">タイヤサイズ</label><input type="text" id="custTireSize" class="form-input" autocomplete="off" /></div>
+            </div>
+            <div class="form-block"><label class="form-label">住所</label><input type="text" id="custAddress" class="form-input" autocomplete="off" /></div>
+            <div class="form-block"><label class="form-label">備考</label><textarea id="custNote" class="form-input" rows="2"></textarea></div>
+            <div class="action-bar">
+              <button class="btn ghost" type="button" id="custResetBtn">クリア</button>
+              <button class="btn primary" type="button" id="custSaveBtn">保存</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 商品マスタ -->
+        <div class="master-pane" data-master-pane="product" hidden>
+          <h3 class="conf-section-title">商品マスタ</h3>
+          <div class="form-block">
+            <input type="text" id="prodSearch" class="form-input" placeholder="商品名で検索" autocomplete="off" />
+          </div>
+          <div class="master-list" id="prodList"></div>
+          <div class="master-form">
+            <h4 class="conf-section-title">新規追加 / 編集</h4>
+            <input type="hidden" id="prodEditId" value="" />
+            <div class="form-block"><label class="form-label">商品名 <span class="req">*</span></label><input type="text" id="prodName" class="form-input" autocomplete="off" /></div>
+            <div class="grid-2">
+              <div><label class="form-label">分類</label><input type="text" id="prodCategory" class="form-input" autocomplete="off" placeholder="例: タイヤ / 工賃 / 部材" /></div>
+              <div><label class="form-label">タイヤサイズ</label><input type="text" id="prodTireSize" class="form-input" autocomplete="off" /></div>
+              <div><label class="form-label">標準単価(売価)</label><input type="text" id="prodUnitPrice" class="form-input" inputmode="numeric" autocomplete="off" /></div>
+              <div><label class="form-label">標準仕入単価</label><input type="text" id="prodCostPrice" class="form-input" inputmode="numeric" autocomplete="off" /></div>
+            </div>
+            <div class="form-block">
+              <label class="checkbox-label"><input type="checkbox" id="prodStockManaged" /> 在庫管理対象</label>
+            </div>
+            <div class="form-block"><label class="form-label">備考</label><textarea id="prodNote" class="form-input" rows="2"></textarea></div>
+            <div class="action-bar">
+              <button class="btn ghost" type="button" id="prodResetBtn">クリア</button>
+              <button class="btn primary" type="button" id="prodSaveBtn">保存</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 経費科目マスタ -->
+        <div class="master-pane" data-master-pane="expCat" hidden>
+          <h3 class="conf-section-title">経費科目マスタ</h3>
+          <p class="form-sub">経費登録の科目候補として使われます。本社確定科目は本社が別途確認します。</p>
+          <div class="master-list" id="expCatList"></div>
+        </div>
+
+        <!-- 支払方法マスタ -->
+        <div class="master-pane" data-master-pane="payment" hidden>
+          <h3 class="conf-section-title">支払方法マスタ</h3>
+          <p class="form-sub">売上・経費・仕入の支払方法候補として使われます。</p>
+          <div class="master-list" id="paymentList"></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ===================== 本社側 ===================== -->
+  <section class="role-pane" data-pane="hq" hidden>
+
+    <div class="hq-layout">
+
+      <aside class="hq-sidebar">
+        <div class="hq-sidebar-title">本社管理メニュー</div>
+        <nav class="hq-nav" role="tablist" aria-label="本社メニュー">
+          <button class="hq-nav-item active" data-hq-tab="dashboard" role="tab">
+            <span class="hni-icon" aria-hidden="true">📊</span>
+            <span class="hni-label">ダッシュボード</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="sales" role="tab">
+            <span class="hni-icon" aria-hidden="true">💰</span>
+            <span class="hni-label">売上一覧</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="sales-report" role="tab">
+            <span class="hni-icon" aria-hidden="true">📈</span>
+            <span class="hni-label">売上集計</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="expenses" role="tab">
+            <span class="hni-icon" aria-hidden="true">💸</span>
+            <span class="hni-label">経費一覧</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="purchases" role="tab">
+            <span class="hni-icon" aria-hidden="true">📦</span>
+            <span class="hni-label">仕入一覧</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="pending" role="tab">
+            <span class="hni-icon" aria-hidden="true">⏳</span>
+            <span class="hni-label">未確認データ</span>
+            <span class="hni-badge" id="navPendingBadge" hidden>0</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="revisions" role="tab">
+            <span class="hni-icon" aria-hidden="true">✏️</span>
+            <span class="hni-label">修正依頼一覧</span>
+            <span class="hni-badge" id="navRevisionsBadge" hidden>0</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="confirmed" role="tab">
+            <span class="hni-icon" aria-hidden="true">✓</span>
+            <span class="hni-label">確認済み一覧</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="holds" role="tab">
+            <span class="hni-icon" aria-hidden="true">⏸</span>
+            <span class="hni-label">保留一覧</span>
+            <span class="hni-badge" id="navHoldsBadge" hidden>0</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="monthly" role="tab">
+            <span class="hni-icon" aria-hidden="true">📅</span>
+            <span class="hni-label">月次集計</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="year-end" role="tab">
+            <span class="hni-icon" aria-hidden="true">📆</span>
+            <span class="hni-label">決算用集計</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="sync-status" role="tab">
+            <span class="hni-icon" aria-hidden="true">📡</span>
+            <span class="hni-label">Sheets同期状態</span>
+            <span class="hni-badge" id="navSyncFailedBadge" hidden>0</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="csv" role="tab">
+            <span class="hni-icon" aria-hidden="true">📥</span>
+            <span class="hni-label">CSV出力</span>
+          </button>
+          <button class="hq-nav-item" data-hq-tab="oplogs" role="tab">
+            <span class="hni-icon" aria-hidden="true">📜</span>
+            <span class="hni-label">操作ログ</span>
+          </button>
+        </nav>
+      </aside>
+
+      <div class="hq-content">
+
+        <!-- H1: ダッシュボード -->
+        <div class="hq-screen active" data-hq-screen="dashboard">
+          <div class="screen-pad">
+            <div class="hq-page-header">
+              <h1 class="screen-title">ダッシュボード</h1>
+              <div class="hq-page-sub" id="hqTodayLabel"></div>
+            </div>
+
+            <p class="biz-note">🏢 本社側で売上・経費の <strong>確認・修正依頼・月次締め</strong> 処理を一元管理します。</p>
+
+            <h2 class="section-title">本日／今月のKPI</h2>
+            <div class="hq-kpi-grid">
+              <div class="kpi"><div class="kpi-label">本日売上</div><div class="kpi-value" id="kpiTodaySales">¥0</div><div class="kpi-sub" id="kpiTodaySalesCount">0件</div></div>
+              <div class="kpi"><div class="kpi-label">今月売上</div><div class="kpi-value" id="kpiMonthSales">¥0</div><div class="kpi-sub" id="kpiMonthSalesCount">0件</div></div>
+              <div class="kpi"><div class="kpi-label">本日経費</div><div class="kpi-value" id="kpiTodayExpense">¥0</div><div class="kpi-sub" id="kpiTodayExpenseCount">0件</div></div>
+              <div class="kpi"><div class="kpi-label">今月経費</div><div class="kpi-value" id="kpiMonthExpense">¥0</div><div class="kpi-sub" id="kpiMonthExpenseCount">0件</div></div>
+              <div class="kpi highlight"><div class="kpi-label">今月 粗利益概算</div><div class="kpi-value" id="kpiMonthGross">¥0</div><div class="kpi-sub">売上 − 仕入 − 経費</div></div>
+              <div class="kpi alert" data-hq-jump="pending"><div class="kpi-label">未確認 売上</div><div class="kpi-value" id="kpiPendingSales">0</div><div class="kpi-sub">件 ・ クリックで確認</div></div>
+              <div class="kpi alert" data-hq-jump="pending"><div class="kpi-label">未確認 経費</div><div class="kpi-value" id="kpiPendingExpense">0</div><div class="kpi-sub">件 ・ クリックで確認</div></div>
+              <div class="kpi warn"><div class="kpi-label">修正依頼中</div><div class="kpi-value" id="kpiRejected">0</div><div class="kpi-sub">店舗が再登録待ち</div></div>
+            </div>
+
+            <div class="hq-two-col">
+              <div>
+                <h2 class="section-title">未確認の登録（要対応）</h2>
+                <div id="hqRecentList" class="hq-list"></div>
+              </div>
+              <div>
+                <h2 class="section-title">本日の登録</h2>
+                <div id="hqTodayList" class="hq-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- H2: 売上一覧 -->
+        <div class="hq-screen" data-hq-screen="sales">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">売上一覧</h1>
+              <div class="hq-toolbar-actions">
+                <select id="salesFilter" class="form-input compact" aria-label="ステータスで絞り込み">
+                  <option value="all">全てのステータス</option>
+                  <option value="未確認">未確認</option>
+                  <option value="確認済み">確認済み</option>
+                  <option value="修正依頼">修正依頼</option>
+                  <option value="月次処理済み">月次処理済み</option>
+                </select>
+                <button class="btn ghost small" id="salesSortBtn" aria-label="日付順で並び替え">📅 新しい順</button>
+                <button class="btn ghost small" id="exportSalesCsv">📥 CSV出力</button>
+              </div>
+            </div>
+            <p class="biz-note">📋 店長が登録した売上を本社で <strong>確認・承認</strong> します。修正が必要な場合はコメント付きで店舗へ差し戻せます。</p>
+            <div id="hqSalesList" class="hq-list"></div>
+          </div>
+        </div>
+
+        <!-- v3.16: 売上集計 (期間別/支払方法別/区分別/商品別/サイズ別) -->
+        <div class="hq-screen" data-hq-screen="sales-report">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">売上集計</h1>
+              <div class="hq-page-sub">本日・当月・前月・全期間の売上を集計、CSV出力できます</div>
+            </div>
+
+            <p class="biz-note">📈 本社で <strong>当日・当月・前月・全期間</strong> の売上を集計、<strong>支払方法／売上区分／商品／タイヤサイズ</strong> 別の内訳と <strong>日別／月別</strong> の推移を確認できます。</p>
+
+            <!-- クイックリンク -->
+            <div class="sr-quick-links">
+              <button class="btn outline small" id="srGoSalesBtn" type="button">📋 売上一覧画面へ</button>
+              <button class="btn outline small" id="srSetMonthBtn" type="button">📅 当月のみで絞り込む</button>
+              <button class="btn outline small" id="srGoPendingBtn" type="button">⏳ 未確認売上一覧へ</button>
+            </div>
+
+            <!-- 売上KPI: 期間別 5枚 -->
+            <h2 class="section-title">📊 期間別 売上</h2>
+            <div class="sr-amount-row">
+              <div class="kpi"><div class="kpi-label">本日売上</div><div class="kpi-value" id="srKpiToday">¥0</div><div class="kpi-sub" id="srKpiTodayCnt">0件</div></div>
+              <div class="kpi"><div class="kpi-label">昨日売上</div><div class="kpi-value" id="srKpiYesterday">¥0</div><div class="kpi-sub" id="srKpiYesterdayCnt">0件</div></div>
+              <div class="kpi"><div class="kpi-label">当月売上</div><div class="kpi-value" id="srKpiMonth">¥0</div><div class="kpi-sub" id="srKpiMonthCnt">0件</div></div>
+              <div class="kpi"><div class="kpi-label">前月売上</div><div class="kpi-value" id="srKpiPrevMonth">¥0</div><div class="kpi-sub" id="srKpiPrevMonthCnt">0件</div></div>
+              <div class="kpi highlight"><div class="kpi-label">全期間売上合計</div><div class="kpi-value" id="srKpiAll">¥0</div><div class="kpi-sub" id="srKpiAllCnt">0件</div></div>
+            </div>
+
+            <!-- 売上件数KPI: ステータス別 -->
+            <h2 class="section-title">🔢 件数</h2>
+            <div class="sr-count-row">
+              <div class="kpi"><div class="kpi-label">本日売上件数</div><div class="kpi-value" id="srKpiTodayCntOnly">0</div></div>
+              <div class="kpi"><div class="kpi-label">当月売上件数</div><div class="kpi-value" id="srKpiMonthCntOnly">0</div></div>
+              <div class="kpi alert"><div class="kpi-label">未確認売上件数</div><div class="kpi-value" id="srKpiPendingOnly">0</div></div>
+              <div class="kpi"><div class="kpi-label">確認済み売上件数</div><div class="kpi-value" id="srKpiConfirmedOnly">0</div></div>
+            </div>
+
+            <!-- 絞り込み -->
+            <h2 class="section-title">🔍 絞り込み</h2>
+            <div class="sr-filters">
+              <div class="sr-filter-grid">
+                <div class="sr-filter-cell">
+                  <label class="form-label" for="srStart">開始日</label>
+                  <input type="date" id="srStart" class="form-input compact" />
+                </div>
+                <div class="sr-filter-cell">
+                  <label class="form-label" for="srEnd">終了日</label>
+                  <input type="date" id="srEnd" class="form-input compact" />
+                </div>
+                <div class="sr-filter-cell">
+                  <label class="form-label" for="srPayment">支払方法</label>
+                  <select id="srPayment" class="form-input compact">
+                    <option value="all">全て</option>
+                    <option value="現金">現金</option>
+                    <option value="クレジットカード">クレジットカード</option>
+                    <option value="QR決済">QR決済</option>
+                    <option value="銀行振込">銀行振込</option>
+                    <option value="売掛">売掛</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
+                <div class="sr-filter-cell">
+                  <label class="form-label" for="srCategory">売上区分</label>
+                  <select id="srCategory" class="form-input compact">
+                    <option value="all">全て</option>
+                    <option value="新品タイヤ販売">新品タイヤ販売</option>
+                    <option value="中古タイヤ販売">中古タイヤ販売</option>
+                    <option value="タイヤ交換工賃">タイヤ交換工賃</option>
+                    <option value="バランス調整">バランス調整</option>
+                    <option value="廃タイヤ処分料">廃タイヤ処分料</option>
+                    <option value="バルブ交換">バルブ交換</option>
+                    <option value="パンク修理">パンク修理</option>
+                    <option value="ホイール販売">ホイール販売</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
+                <div class="sr-filter-cell">
+                  <label class="form-label" for="srStatus">確認ステータス</label>
+                  <select id="srStatus" class="form-input compact">
+                    <option value="all">全て</option>
+                    <option value="未確認">未確認</option>
+                    <option value="確認済み">確認済み</option>
+                    <option value="修正依頼">修正依頼</option>
+                    <option value="月次処理済み">月次処理済み</option>
+                  </select>
+                </div>
+              </div>
+              <div class="sr-filter-actions">
+                <button class="btn ghost small" id="srResetBtn" type="button">🔄 リセット</button>
+                <button class="btn primary small" id="srExportBtn" type="button">📥 期間CSV出力</button>
+              </div>
+            </div>
+
+            <!-- 絞り込み結果サマリー -->
+            <div class="sr-filtered-summary">
+              <div>
+                <div class="sr-fs-label">絞り込み結果</div>
+                <div class="sr-fs-period" id="srFilteredPeriod">—</div>
+              </div>
+              <div class="sr-fs-stats">
+                <div class="sr-fs-amount" id="srFilteredTotal">¥0</div>
+                <div class="sr-fs-count" id="srFilteredCount">0件</div>
+              </div>
+            </div>
+
+            <!-- 期間別 推移 -->
+            <h2 class="section-title">📅 期間別 推移</h2>
+            <div class="sr-period-grid">
+              <div class="bd-card">
+                <div class="bd-title">日別売上 (絞り込み期間内)</div>
+                <div id="srDailyList" class="sr-period-list"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">月別売上 (全期間)</div>
+                <div id="srMonthlyList" class="sr-period-list"></div>
+              </div>
+            </div>
+
+            <!-- カテゴリ別内訳 -->
+            <h2 class="section-title">🥧 カテゴリ別 内訳</h2>
+            <div class="month-breakdown-grid">
+              <div class="bd-card">
+                <div class="bd-title">支払方法別</div>
+                <div class="cat-breakdown" id="srByPayment"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">売上区分別 (複数の場合は等分配分)</div>
+                <div class="cat-breakdown" id="srByCategory"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">商品別 Top 10</div>
+                <div class="cat-breakdown" id="srByProduct"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">タイヤサイズ別 Top 10</div>
+                <div class="cat-breakdown" id="srByTireSize"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- H3: 経費一覧 -->
+        <div class="hq-screen" data-hq-screen="expenses">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">経費一覧</h1>
+              <div class="hq-toolbar-actions">
+                <select id="expenseFilter" class="form-input compact" aria-label="ステータスで絞り込み">
+                  <option value="all">全てのステータス</option>
+                  <option value="未確認">未確認</option>
+                  <option value="確認済み">確認済み</option>
+                  <option value="修正依頼">修正依頼</option>
+                  <option value="月次処理済み">月次処理済み</option>
+                </select>
+                <button class="btn ghost small" id="expenseSortBtn" aria-label="日付順で並び替え">📅 新しい順</button>
+                <button class="btn ghost small" id="exportExpenseCsv">📥 CSV出力</button>
+              </div>
+            </div>
+            <p class="biz-note">🧾 経費の確認と <strong>AI分類科目から本社確定科目への変更</strong> ができます。レシート画像も拡大確認できます。</p>
+            <div id="hqExpenseList" class="hq-list"></div>
+          </div>
+        </div>
+
+        <!-- H4: 未確認一覧 -->
+        <div class="hq-screen" data-hq-screen="pending">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">未確認一覧</h1>
+              <div class="hq-toolbar-actions">
+                <button class="btn ghost small" id="pendingSortBtn" aria-label="日付順で並び替え">📅 新しい順</button>
+              </div>
+            </div>
+            <div class="hq-page-sub">店長が登録した、まだ確認していないものを 売上 / 経費 で絞り込めます</div>
+            <div class="pending-tabs">
+              <button class="pending-tab active" data-pending-type="all">全て <span class="ptab-num" id="ptabAll">0</span></button>
+              <button class="pending-tab" data-pending-type="sale">売上 <span class="ptab-num" id="ptabSale">0</span></button>
+              <button class="pending-tab" data-pending-type="expense">経費 <span class="ptab-num" id="ptabExpense">0</span></button>
+              <button class="pending-tab" data-pending-type="purchase">仕入 <span class="ptab-num" id="ptabPurchase">0</span></button>
+            </div>
+            <div id="hqPendingList" class="pending-list"></div>
+          </div>
+        </div>
+
+        <!-- H5: 月次集計 -->
+        <div class="hq-screen" data-hq-screen="monthly">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">月次集計</h1>
+              <input type="month" id="monthlyPicker" class="form-input compact" />
+            </div>
+
+            <p class="biz-note">📊 月単位で <strong>売上・経費・粗利益</strong> を集計、月次締めで会計確定処理ができます。月次集計CSVは会計ソフト連携・補助金申請資料に活用できます。</p>
+
+            <!-- 月次サマリー バナー (対象月 + 締めステータス + 締めボタン) -->
+            <div class="month-summary-banner">
+              <div class="msb-period">
+                <span class="msb-period-label">対象年月</span>
+                <span class="msb-period-value" id="monPeriod">—</span>
+              </div>
+              <span class="msb-status" id="monLockStatusBox">—</span>
+              <button class="btn primary" id="monthCloseBtn" disabled>📅 月次締めを実行</button>
+              <button class="btn ghost" id="monthUnlockBtn" hidden>🔓 月次締めを解除（デモ）</button>
+            </div>
+
+            <!-- 大型KPI: 売上合計 / 経費合計 / 仕入合計 / 粗利益概算 -->
+            <div class="month-bigs">
+              <div class="month-big sales">
+                <div class="mb-label">売上合計</div>
+                <div class="mb-value" id="monBigSales">¥0</div>
+                <div class="mb-sub" id="monSalesCnt">0件</div>
+              </div>
+              <div class="month-big expense">
+                <div class="mb-label">経費合計</div>
+                <div class="mb-value" id="monBigExpense">¥0</div>
+                <div class="mb-sub" id="monExpenseCnt">0件</div>
+              </div>
+              <div class="month-big" style="background:#fff1e0;color:#b35a00;border-color:#f5cf9a">
+                <div class="mb-label">仕入合計</div>
+                <div class="mb-value" id="monBigPurchase">¥0</div>
+                <div class="mb-sub" id="monPurchaseCnt">0件</div>
+              </div>
+              <div class="month-big gross">
+                <div class="mb-label">粗利益概算</div>
+                <div class="mb-value" id="monBigGross">¥0</div>
+                <div class="mb-sub">売上 − 経費 − 仕入</div>
+              </div>
+            </div>
+
+            <!-- ステータス別件数 (v3.18.2: 保留 + Sheets失敗 を追加) -->
+            <div class="month-status-grid">
+              <div class="ms-card pending"><div class="ms-num" id="monPendingCnt">0</div><div class="ms-lbl">未確認</div></div>
+              <div class="ms-card rejected"><div class="ms-num" id="monRejCnt">0</div><div class="ms-lbl">修正依頼+差戻し</div></div>
+              <div class="ms-card confirmed"><div class="ms-num" id="monConfirmedCnt">0</div><div class="ms-lbl">確認済み</div></div>
+              <div class="ms-card locked"><div class="ms-num" id="monLockedCnt">0</div><div class="ms-lbl">月次処理済み</div></div>
+              <div class="ms-card pending"><div class="ms-num" id="monHoldsCnt">0</div><div class="ms-lbl">保留</div></div>
+              <div class="ms-card rejected"><div class="ms-num" id="monSyncFailCnt">0</div><div class="ms-lbl">Sheets送信失敗</div></div>
+            </div>
+
+            <!-- 売上内訳 -->
+            <div class="month-section-title">📈 売上内訳</div>
+            <div class="month-breakdown-grid">
+              <div class="bd-card">
+                <div class="bd-title">支払方法別</div>
+                <div class="cat-breakdown" id="bdSalesByPay"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">売上区分別（複数の場合は等分配分）</div>
+                <div class="cat-breakdown" id="bdSalesByCategory"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">商品別 Top 10</div>
+                <div class="cat-breakdown" id="bdSalesByProduct"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">タイヤサイズ別 Top 10</div>
+                <div class="cat-breakdown" id="bdSalesByTireSize"></div>
+              </div>
+            </div>
+
+            <!-- 経費内訳 -->
+            <div class="month-section-title">💸 経費内訳</div>
+            <div class="month-breakdown-grid">
+              <div class="bd-card">
+                <div class="bd-title">経費科目別（本社確定基準）</div>
+                <div class="cat-breakdown" id="bdExpenseByCategory"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">支払方法別</div>
+                <div class="cat-breakdown" id="bdExpenseByPay"></div>
+              </div>
+              <div class="bd-card">
+                <div class="bd-title">購入先別 Top 10</div>
+                <div class="cat-breakdown" id="bdExpenseByVendor"></div>
+              </div>
+            </div>
+
+            <div class="action-bar single">
+              <button class="btn primary" id="exportMonthlyCsv">📥 月次集計CSVを出力</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- H6: CSV出力 -->
+        <div class="hq-screen" data-hq-screen="csv">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">CSV出力</h1>
+              <div class="hq-page-sub">会計ソフト連携・補助金申請資料用にダウンロードできます</div>
+            </div>
+
+            <div class="csv-cards">
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">💰</div>
+                <div class="cs-title">売上CSV</div>
+                <div class="cs-desc">日付・店舗名・担当者・売上区分・商品名・タイヤサイズ・数量・単価・合計金額・支払方法・車種・車両番号・作業内容・備考・確認ステータス（15項目）</div>
+                <label class="cs-form-label">期間</label>
+                <select id="csvSalesRange" class="form-input">
+                  <option value="month">今月</option>
+                  <option value="last-month">先月</option>
+                  <option value="all">全期間</option>
+                  <option value="today">本日のみ</option>
+                </select>
+                <button class="btn primary big csv-btn" id="csvSalesBtn">📥 売上CSVを出力</button>
+              </div>
+
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">💸</div>
+                <div class="cs-title">経費CSV</div>
+                <div class="cs-desc">日付・店舗名・担当者・購入先・内容・金額・消費税・支払方法・AI分類科目・本社確定科目・備考・確認ステータス（12項目）</div>
+                <label class="cs-form-label">期間</label>
+                <select id="csvExpenseRange" class="form-input">
+                  <option value="month">今月</option>
+                  <option value="last-month">先月</option>
+                  <option value="all">全期間</option>
+                  <option value="today">本日のみ</option>
+                </select>
+                <button class="btn primary big csv-btn" id="csvExpenseBtn">📥 経費CSVを出力</button>
+              </div>
+
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">📊</div>
+                <div class="cs-title">月次集計CSV</div>
+                <div class="cs-desc">対象年月・売上合計・経費合計・粗利益概算・件数（売上/経費/未確認/修正依頼/月次処理済み）・月次締めステータス + 全内訳 + 全明細を1ファイルに集約</div>
+                <label class="cs-form-label">対象月</label>
+                <input type="month" id="csvMonthlyMonth" class="form-input" />
+                <button class="btn primary big csv-btn" id="csvMonthlyBtn">📥 月次集計CSVを出力</button>
+              </div>
+
+              <!-- v3.18.2 (第3分割): 仕入CSV / 決算用集計CSV / 操作ログCSV -->
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">📦</div>
+                <div class="cs-title">仕入明細CSV</div>
+                <div class="cs-desc">仕入日・店舗・担当・仕入先・商品・タイヤサイズ・数量・単価・仕入合計・支払方法・備考・確認ステータス・Sheets同期状態（13項目）</div>
+                <label class="cs-form-label">期間</label>
+                <select id="csvPurchaseRange" class="form-input">
+                  <option value="month" selected>今月</option>
+                  <option value="last-month">先月</option>
+                  <option value="all">全期間</option>
+                  <option value="today">本日のみ</option>
+                </select>
+                <button class="btn primary big csv-btn" id="csvPurchaseBtn">📥 仕入CSVを出力</button>
+              </div>
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">📆</div>
+                <div class="cs-title">決算用集計CSV</div>
+                <div class="cs-desc">対象年・月別 12行（売上/経費/仕入/粗利益/件数/未確認）+ 年間合計 + 確認未完了サマリー（未確認/修正依頼/保留/送信失敗 件数）</div>
+                <label class="cs-form-label">対象年</label>
+                <select id="csvYearPicker" class="form-input"></select>
+                <button class="btn primary big csv-btn" id="csvYearEndBtn">📥 決算用集計CSVを出力</button>
+              </div>
+              <div class="csv-card">
+                <div class="cs-icon" aria-hidden="true">📜</div>
+                <div class="cs-title">操作ログCSV</div>
+                <div class="cs-desc">操作ログ画面の絞り込みに基づき、ログID・日時・操作種別・操作ユーザー・対象データ種別・対象登録ID・内容・結果（8項目）を出力</div>
+                <button class="btn primary big csv-btn" id="csvOpLogsBtn">📥 操作ログCSVを出力</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- v3.18.1 (第2分割): 本社 仕入一覧 -->
+        <div class="hq-screen" data-hq-screen="purchases">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">仕入一覧</h1>
+              <div class="hq-page-sub">店舗から登録されたタイヤ・部材の仕入を確認します</div>
+            </div>
+            <div class="hq-card-list" id="hqPurchasesList"></div>
+          </div>
+        </div>
+
+        <!-- v3.18.1 (第2分割): 修正依頼一覧 (修正依頼 + 差戻し) -->
+        <div class="hq-screen" data-hq-screen="revisions">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">修正依頼一覧</h1>
+              <div class="hq-page-sub">本社が店舗に修正依頼・差戻しを出したデータの一覧です</div>
+            </div>
+            <div class="hq-card-list" id="hqRevisionsList"></div>
+          </div>
+        </div>
+
+        <!-- v3.18.1 (第2分割): 確認済み一覧 -->
+        <div class="hq-screen" data-hq-screen="confirmed">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">確認済み一覧</h1>
+              <div class="hq-page-sub">本社が確認済みにしたデータの一覧</div>
+            </div>
+            <div class="hq-card-list" id="hqConfirmedList"></div>
+          </div>
+        </div>
+
+        <!-- v3.18.1 (第2分割): 保留一覧 -->
+        <div class="hq-screen" data-hq-screen="holds">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">保留一覧</h1>
+              <div class="hq-page-sub">本社が判断保留にしているデータの一覧</div>
+            </div>
+            <div class="hq-card-list" id="hqHoldsList"></div>
+          </div>
+        </div>
+
+        <!-- v3.18.1 (第2分割) + v3.18.2 (第3分割): 操作ログ (絞り込み + CSV) -->
+        <div class="hq-screen" data-hq-screen="oplogs">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">操作ログ</h1>
+              <div class="hq-page-sub">登録・確認・修正依頼・送信・マスタ・CSV出力 等の履歴 (直近500件 / 新しい順)</div>
+            </div>
+            <div class="oplog-filters">
+              <div class="form-block">
+                <label class="form-label">操作種別</label>
+                <select id="oplogFilterOp" class="form-input">
+                  <option value="">全て</option>
+                  <option>売上登録</option><option>経費登録</option><option>仕入登録</option>
+                  <option>Google Sheets送信成功</option><option>Google Sheets送信失敗</option>
+                  <option>Sheets再送信成功</option><option>Sheets再送信失敗</option>
+                  <option>本社確認済み</option><option>修正依頼作成</option>
+                  <option>保留</option><option>差戻し</option>
+                  <option>店舗修正保存</option><option>店舗対応済み</option>
+                  <option>マスタ追加</option><option>マスタ更新</option>
+                  <option>CSV出力</option>
+                </select>
+              </div>
+              <div class="grid-2">
+                <div>
+                  <label class="form-label">対象データ種別</label>
+                  <select id="oplogFilterType" class="form-input">
+                    <option value="">全て</option>
+                    <option value="sale">売上</option>
+                    <option value="expense">経費</option>
+                    <option value="purchase">仕入</option>
+                    <option value="customer">顧客</option>
+                    <option value="product">商品</option>
+                    <option value="csv">CSV</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">結果</label>
+                  <select id="oplogFilterResult" class="form-input">
+                    <option value="">全て</option>
+                    <option value="成功">成功</option>
+                    <option value="失敗">失敗</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label">開始日</label>
+                  <input type="date" id="oplogFilterFrom" class="form-input" />
+                </div>
+                <div>
+                  <label class="form-label">終了日</label>
+                  <input type="date" id="oplogFilterTo" class="form-input" />
+                </div>
+              </div>
+              <div class="action-bar">
+                <button class="btn ghost small" type="button" id="oplogResetBtn">🔄 リセット</button>
+                <button class="btn primary small" type="button" id="oplogExportCsvBtn">📥 操作ログCSV出力</button>
+              </div>
+            </div>
+            <div class="oplog-summary" id="oplogSummary"></div>
+            <div class="oplog-list" id="hqOpLogsList"></div>
+          </div>
+        </div>
+
+        <!-- v3.18.2 (第3分割): 決算用集計 -->
+        <div class="hq-screen" data-hq-screen="year-end">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">決算用集計</h1>
+              <div class="hq-page-sub">年間合計・月別推移・確認未完了データの把握 (本社向け)</div>
+            </div>
+            <div class="form-block">
+              <label class="form-label">対象年</label>
+              <select id="yearEndPicker" class="form-input"></select>
+            </div>
+            <div class="status-grid year-end-grid">
+              <div class="status-card sales"><div class="sc-label">年間売上合計</div><div class="sc-value" id="yeSalesAmt">¥0</div><div class="sc-sub" id="yeSalesCnt">0件</div></div>
+              <div class="status-card expense"><div class="sc-label">年間経費合計</div><div class="sc-value" id="yeExpAmt">¥0</div><div class="sc-sub" id="yeExpCnt">0件</div></div>
+              <div class="status-card purchase"><div class="sc-label">年間仕入合計</div><div class="sc-value" id="yePurAmt">¥0</div><div class="sc-sub" id="yePurCnt">0件</div></div>
+              <div class="status-card gross highlight"><div class="sc-label">年間粗利益(概算)</div><div class="sc-value" id="yeGross">¥0</div><div class="sc-sub">売上 − 経費 − 仕入</div></div>
+              <div class="status-card pending"><div class="sc-label">未確認</div><div class="sc-value" id="yePending">0</div><div class="sc-sub">件</div></div>
+              <div class="status-card reject"><div class="sc-label">修正依頼中</div><div class="sc-value" id="yeRevision">0</div><div class="sc-sub">件 (修正依頼+差戻し)</div></div>
+              <div class="status-card reject"><div class="sc-label">Sheets送信失敗</div><div class="sc-value" id="yeSyncFailed">0</div><div class="sc-sub">件</div></div>
+            </div>
+            <h3 class="conf-section-title">📊 月別推移</h3>
+            <div class="ye-month-table-wrap">
+              <table class="ye-month-table" id="yeMonthTable">
+                <thead><tr>
+                  <th>対象月</th><th class="num">売上</th><th class="num">経費</th><th class="num">仕入</th>
+                  <th class="num">粗利益</th><th class="num">売上件</th><th class="num">経費件</th>
+                  <th class="num">仕入件</th><th class="num">未確認</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <h3 class="conf-section-title">⚠ 確認未完了データ一覧</h3>
+            <p class="form-sub">未確認 / 修正依頼 / 差戻し / 保留 / Sheets送信失敗 のデータを決算前にご確認ください。</p>
+            <div class="hq-card-list" id="yeIncompleteList"></div>
+            <div class="action-bar">
+              <button class="btn primary" type="button" id="yeExportCsvBtn">📥 決算用集計CSVを出力</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- v3.18.2 (第3分割): Sheets 同期状態 -->
+        <div class="hq-screen" data-hq-screen="sync-status">
+          <div class="screen-pad">
+            <div class="hq-toolbar">
+              <h1 class="screen-title">Google Sheets 同期状態</h1>
+              <div class="hq-page-sub">売上・経費・仕入の sheetsSyncStatus を確認し、failed/pending は再送信できます</div>
+            </div>
+            <div class="sync-tabs">
+              <button class="sync-tab active" data-sync-tab="failed">📡 送信失敗 <span class="st-num" id="stFailedNum">0</span></button>
+              <button class="sync-tab" data-sync-tab="pending">⏳ 未送信 <span class="st-num" id="stPendingNum">0</span></button>
+              <button class="sync-tab" data-sync-tab="synced">✓ 送信済み <span class="st-num" id="stSyncedNum">0</span></button>
+            </div>
+            <div class="action-bar">
+              <button class="btn primary small" type="button" id="syncRetryAllFailedBtn">🔁 失敗を一括再送信</button>
+            </div>
+            <div class="hq-card-list" id="hqSyncStatusList"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </section>
+
+  <!-- v3.18.1 (第2分割): 本社アクションモーダル (確認/修正依頼/保留/差戻し選択) -->
+  <div class="modal" id="hqActionModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">本社アクション</div>
+        <button class="modal-close" id="hqActionClose" aria-label="閉じる">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="hq-action-target" id="hqActionTarget"></div>
+        <div class="hq-action-buttons">
+          <button class="btn primary" type="button" data-hq-action="confirm">✓ 確認済みにする</button>
+          <button class="btn ghost"   type="button" data-hq-action="revise">✏️ 修正依頼を出す</button>
+          <button class="btn ghost"   type="button" data-hq-action="hold">⏸ 保留にする</button>
+          <button class="btn ghost"   type="button" data-hq-action="sendBack">↩ 差戻しにする</button>
+        </div>
+        <div class="hq-action-revise-form" id="hqActionReviseForm" hidden>
+          <h4 class="conf-section-title">修正依頼内容</h4>
+          <p class="form-sub">店舗側の「本社からの修正依頼」画面に表示されます。</p>
+          <div class="quick-reasons" id="hqReviseQuickReasons"></div>
+          <textarea id="hqReviseText" class="form-input" rows="3" placeholder="例: 車両番号を確認してください / 金額の根拠を確認してください / レシート画像が不鮮明です"></textarea>
+          <div class="action-bar">
+            <button class="btn ghost" type="button" id="hqReviseCancel">キャンセル</button>
+            <button class="btn primary" type="button" id="hqReviseConfirm">この内容で送信</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 共通: 詳細モーダル ===================== -->
+  <div class="modal" id="detailModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">詳細</div>
+        <button class="modal-close" id="modalCloseBtn">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <!-- 修正依頼ダイアログ -->
+  <div class="modal" id="rejectModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">修正依頼</div>
+        <button class="modal-close" id="rejectCloseBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">修正内容（店長へのコメント）</label>
+        <textarea id="rejectNote" class="form-input" rows="4" placeholder="例：金額が間違っているようです。確認してください。"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="rejectCancelBtn">キャンセル</button>
+        <button class="btn warn" id="rejectSendBtn">修正依頼を送信</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- v3.3: 画像拡大モーダル -->
+  <div class="modal" id="imageZoomModal" hidden>
+    <div class="modal-card image-zoom-card">
+      <div class="modal-header">
+        <div class="modal-title" id="imageZoomTitle">レシート画像</div>
+        <button class="modal-close" id="imageZoomCloseBtn">×</button>
+      </div>
+      <div class="modal-body" id="imageZoomBody"></div>
+    </div>
+  </div>
+
+  <!-- v3.5: 店舗側 修正・再提出モーダル -->
+  <div class="modal" id="storeEditModal" hidden>
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div class="modal-title" id="storeEditTitle">修正・再提出</div>
+        <button class="modal-close" id="storeEditCloseBtn">×</button>
+      </div>
+      <div class="modal-body" id="storeEditBody"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="storeEditCancelBtn">キャンセル</button>
+        <button class="btn success big" id="storeEditSubmitBtn">📤 修正して再提出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- v3.18.3 (第3.1分割): CSV出力モーダル (スマホ対応・保存リンク + 共有 + コピー + プレビュー) -->
+  <div class="modal" id="csvExportModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">📥 CSV出力</div>
+        <button class="modal-close" id="csvExportCloseBtn" aria-label="閉じる">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="csv-export-filename" id="csvExportFilename"></div>
+        <div class="csv-export-message" id="csvExportMessage"></div>
+        <div class="csv-export-actions">
+          <a class="btn primary big" id="csvExportSaveLink" download href="#">📥 CSVを保存</a>
+          <button type="button" class="btn ghost" id="csvExportShareBtn" hidden>📤 CSVを共有</button>
+          <button type="button" class="btn ghost" id="csvExportCopyBtn">📋 CSVをコピー</button>
+        </div>
+        <h4 class="conf-section-title">CSVプレビュー</h4>
+        <p class="form-sub">ここから内容を選択してコピーできます（メモ・メール・Googleスプレッドシートに貼り付け可）。</p>
+        <textarea id="csvExportPreview" class="form-input csv-export-preview" rows="10" readonly></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="csvExportDoneBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- v3.3: 本社確定科目 変更モーダル -->
+  <div class="modal" id="categoryChangeModal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">本社確定科目を変更</div>
+        <button class="modal-close" id="categoryChangeCloseBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="cat-change-info" id="categoryChangeInfo"></div>
+        <div class="form-block">
+          <label class="form-label">科目を選択（タップで選択）</label>
+          <div class="cat-all" id="categoryChangeChips"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="categoryChangeCancelBtn">キャンセル</button>
+        <button class="btn primary" id="categoryChangeSaveBtn">変更を保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト -->
+  <div class="toast" id="toast" hidden></div>
+
+</main>
+
+<footer class="appfoot">
+  <div>© 吉田自動車工業 X-Change Prototype</div>
+  <button class="link-btn" id="resetDataBtn">デモデータ初期化</button>
+</footer>
+
+<!-- v3.17: Tesseract.js (ブラウザOCR、APIキー不要) を遅延ロードする -->
+<script src="app.js"></script>
+</body>
+</html>

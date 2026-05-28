@@ -119,9 +119,44 @@
       if (typeof __cfg.enabled  === 'boolean')                   XCHANGE_SHEETS_CONFIG.enabled  = __cfg.enabled;
       console.log('[Sheets] config injected from config.local.js (endpoint set, token set)');
     } else {
-      console.log('[Sheets] config.local.js not loaded → Sheets送信は無効 (ローカル保存のみ動作)');
+      console.log('[Sheets] config.local.js not loaded → localStorage を確認します');
     }
   } catch (_e) { /* 注入失敗時は既定の空設定で続行 */ }
+
+  // ===== v3.18.15: localStorage 経由のスマホ実機テスト用設定 =====
+  // GitHub Pages 上のスマホからも Vision OCR / Sheets 送信を試せるようにするための代替注入経路。
+  // 「⚙ Sheets設定」モーダルで endpoint/token を入力 → localStorage に保存。
+  // 同一オリジン (worldwinners777.github.io) のみがアクセス可能。
+  // window.XCHANGE_LOCAL_CONFIG (config.local.js) より優先度は低い (静的設定が常勝)。
+  var XCHANGE_LS_KEY = 'xchange_sheets_config_v1';
+  function _xchangeReadLSConfig() {
+    try {
+      var raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(XCHANGE_LS_KEY) : null;
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (obj && typeof obj.endpoint === 'string' && typeof obj.token === 'string' && obj.endpoint && obj.token) {
+        return { endpoint: obj.endpoint, token: obj.token };
+      }
+    } catch (_e) { /* JSON 破損等は無視 */ }
+    return null;
+  }
+  function _xchangeApplyConfig(cfg) {
+    if (!cfg) return false;
+    XCHANGE_SHEETS_CONFIG.endpoint = cfg.endpoint || '';
+    XCHANGE_SHEETS_CONFIG.token    = cfg.token    || '';
+    XCHANGE_SHEETS_CONFIG.enabled  = true;
+    return !!(cfg.endpoint && cfg.token);
+  }
+  // 起動時: window.XCHANGE_LOCAL_CONFIG (config.local.js) が未注入なら localStorage を試す
+  if (!XCHANGE_SHEETS_CONFIG.endpoint || !XCHANGE_SHEETS_CONFIG.token) {
+    var __ls = _xchangeReadLSConfig();
+    if (__ls) {
+      _xchangeApplyConfig(__ls);
+      try { console.log('[Sheets] config restored from localStorage (' + XCHANGE_LS_KEY + ')'); } catch (_) {}
+    } else {
+      try { console.log('[Sheets] localStorage 未設定 → Sheets送信/Vision OCR は無効 (Tesseract.jsのみ動作)'); } catch (_) {}
+    }
+  }
 
   // ===== v3: 既知の車種マスタ（AI解析用） =====
   const CAR_MODELS = [
@@ -2952,7 +2987,9 @@
   // 戻り値: { ok:true, ocrText, expense:{...}, purchase:{...} } または例外
   async function _runVisionOCR(dataUrl) {
     if (!XCHANGE_SHEETS_CONFIG || !XCHANGE_SHEETS_CONFIG.endpoint || !XCHANGE_SHEETS_CONFIG.token) {
-      throw new Error("Vision OCR config unavailable (config.local.js 未配置)");
+      // v3.18.15: 設定未入力時はユーザー向けに toast を出す
+      try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）"); } catch (_) {}
+      throw new Error("Vision OCR config unavailable (Sheets設定が未入力)");
     }
     if (!dataUrl || typeof dataUrl !== "string") throw new Error("dataUrl missing");
 
@@ -3023,7 +3060,9 @@
         // fall through to Tesseract
       }
     } else {
-      try { console.log("[OCR] config.local.js 未配置 → Tesseract.js を使用"); } catch (_) {}
+      // v3.18.15: 設定未入力 → ユーザーへ案内し Tesseract で続行
+      try { console.log("[OCR] Sheets設定 未入力 → Tesseract.js で処理を続行"); } catch (_) {}
+      try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）。Tesseract.jsで読み取ります"); } catch (_) {}
     }
 
     // --- Tesseract.js + Canvas前処理 フォールバック (v3.18.12) ---
@@ -6737,6 +6776,104 @@
     });
   }
 
+  // ================== v3.18.15: Sheets 接続設定モーダル ==================
+  // GitHub Pages 上のスマホでも endpoint/token を入力できるよう、UIから
+  // localStorage に保存する。Vision OCR / Sheets送信 はこの設定があれば
+  // 有効化される。Vision APIキーは Apps Script 側 Script Properties に
+  // 保存されており、ここには絶対に出てこない。
+  function setupSheetsConfigModal() {
+    const openBtn   = $("#openSheetsConfigBtn");
+    const modal     = $("#sheetsConfigModal");
+    if (!openBtn || !modal) return; // HTML が無い古い版でも壊さない
+    const epInput   = $("#sheetsConfigEndpoint");
+    const tkInput   = $("#sheetsConfigToken");
+    const statusEl  = $("#sheetsConfigStatus");
+    const saveBtn   = $("#sheetsConfigSaveBtn");
+    const clearBtn  = $("#sheetsConfigClearBtn");
+    const closeBtn  = $("#sheetsConfigCloseBtn");
+    const showTglBtn = $("#sheetsConfigTokenToggle");
+
+    function refreshStatus() {
+      if (!statusEl) return;
+      const ok = !!(XCHANGE_SHEETS_CONFIG.endpoint && XCHANGE_SHEETS_CONFIG.token);
+      if (ok) {
+        const tkMask = "●".repeat(Math.min(12, (XCHANGE_SHEETS_CONFIG.token || "").length));
+        const epShort = XCHANGE_SHEETS_CONFIG.endpoint.length > 70
+          ? XCHANGE_SHEETS_CONFIG.endpoint.substring(0, 60) + "…"
+          : XCHANGE_SHEETS_CONFIG.endpoint;
+        statusEl.textContent = "✅ 接続設定済み (endpoint=" + epShort + " / token=" + tkMask + ")";
+        statusEl.dataset.state = "ok";
+      } else {
+        statusEl.textContent = "⚠ 未設定 — endpoint と token を入力して「保存して有効化」を押してください";
+        statusEl.dataset.state = "ng";
+      }
+      // フッタ表示用のチップも更新
+      const chip = $("#sheetsConfigChip");
+      if (chip) {
+        chip.textContent = ok ? "🔗 Sheets連携: ON" : "🔌 Sheets連携: OFF";
+        chip.dataset.state = ok ? "on" : "off";
+      }
+    }
+
+    function openModal() {
+      // 現在値をフォームへ反映
+      if (epInput) epInput.value = XCHANGE_SHEETS_CONFIG.endpoint || "";
+      if (tkInput) tkInput.value = XCHANGE_SHEETS_CONFIG.token    || "";
+      refreshStatus();
+      modal.hidden = false;
+    }
+    function closeModal() { modal.hidden = true; }
+
+    if (openBtn) openBtn.addEventListener("click", openModal);
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    // 背景クリックで閉じる
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+    if (saveBtn) saveBtn.addEventListener("click", () => {
+      const ep = (epInput && epInput.value || "").trim();
+      const tk = (tkInput && tkInput.value || "").trim();
+      if (!ep || !tk) { toast("endpoint と token の両方を入力してください"); return; }
+      if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(ep)) {
+        toast("endpoint は Apps Script のウェブアプリ URL (https://script.google.com/macros/s/.../exec) を入力してください");
+        return;
+      }
+      try {
+        localStorage.setItem(XCHANGE_LS_KEY, JSON.stringify({ endpoint: ep, token: tk }));
+        _xchangeApplyConfig({ endpoint: ep, token: tk });
+        toast("Sheets設定を保存しました（この端末のみ）");
+        refreshStatus();
+        try { console.log("[Sheets] config saved to localStorage; Vision OCR / Sheets送信が有効化されました"); } catch (_) {}
+      } catch (err) {
+        toast("保存に失敗しました: " + (err && err.message || err));
+      }
+    });
+
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      if (!confirm("この端末に保存した Sheets 設定を削除します。よろしいですか？")) return;
+      try {
+        localStorage.removeItem(XCHANGE_LS_KEY);
+        XCHANGE_SHEETS_CONFIG.endpoint = "";
+        XCHANGE_SHEETS_CONFIG.token    = "";
+        if (epInput) epInput.value = "";
+        if (tkInput) tkInput.value = "";
+        toast("Sheets設定をクリアしました");
+        refreshStatus();
+        try { console.log("[Sheets] config cleared from localStorage"); } catch (_) {}
+      } catch (err) {
+        toast("クリアに失敗しました: " + (err && err.message || err));
+      }
+    });
+
+    if (showTglBtn && tkInput) showTglBtn.addEventListener("click", () => {
+      const isPwd = tkInput.type === "password";
+      tkInput.type = isPwd ? "text" : "password";
+      showTglBtn.textContent = isPwd ? "🙈 token を隠す" : "👁 token を表示";
+    });
+
+    // 起動時に一度ステータスを描画
+    refreshStatus();
+  }
+
   // ================== 起動 ==================
   function init() {
     bindGlobal();
@@ -6758,6 +6895,7 @@
     setupCategoryChangeModal();
     setupStoreEditModal();
     setupSalesReport();
+    setupSheetsConfigModal();        // v3.18.15: Sheets 接続設定モーダル (スマホ実機テスト用)
     setRole("store");
   }
   if (document.readyState === "loading") {

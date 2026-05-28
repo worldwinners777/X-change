@@ -1766,8 +1766,56 @@
 
 <footer class="appfoot">
   <div>© 吉田自動車工業 X-Change Prototype</div>
-  <button class="link-btn" id="resetDataBtn">デモデータ初期化</button>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <!-- v3.18.15: Sheets 接続設定 (スマホ実機テスト用・localStorage に保存) -->
+    <span id="sheetsConfigChip" data-state="off" style="font-size:12px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,0.1)">🔌 Sheets連携: OFF</span>
+    <button class="link-btn" id="openSheetsConfigBtn">⚙ 接続設定</button>
+    <button class="link-btn" id="resetDataBtn">デモデータ初期化</button>
+  </div>
 </footer>
+
+<!-- v3.18.15: Sheets 接続設定モーダル -->
+<div class="modal" id="sheetsConfigModal" hidden>
+  <div class="modal-card" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title">⚙ Sheets 接続設定</div>
+      <button class="modal-close" id="sheetsConfigCloseBtn" aria-label="閉じる">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.6">
+        この端末から <strong>Google Cloud Vision OCR</strong> と <strong>Google Sheets 送信</strong> を有効にするには、
+        Apps Script ウェブアプリの <code>endpoint</code> と <code>token</code> を入力してください。
+        値は <strong>この端末の localStorage</strong> にのみ保存され、GitHub・サーバには送信されません。
+        <br><br>
+        ※ Google Cloud Vision の API キーは Apps Script の Script Properties に保存済みのため、ここには <strong>絶対に入力しないでください</strong>。
+      </p>
+
+      <div id="sheetsConfigStatus" data-state="ng" style="padding:8px 12px;border-radius:8px;background:rgba(0,0,0,0.04);font-size:13px;margin-bottom:14px">⚠ 未設定</div>
+
+      <div class="form-block">
+        <label class="form-label" for="sheetsConfigEndpoint">Apps Script ウェブアプリ URL (endpoint)</label>
+        <input type="url" id="sheetsConfigEndpoint" class="form-input" placeholder="https://script.google.com/macros/s/AKfyc.../exec" autocomplete="off" inputmode="url" />
+      </div>
+
+      <div class="form-block">
+        <label class="form-label" for="sheetsConfigToken">共有トークン (token)</label>
+        <input type="password" id="sheetsConfigToken" class="form-input" placeholder="Apps Script doPost で照合する共有秘密 (任意の文字列)" autocomplete="off" />
+        <button type="button" class="link-btn" id="sheetsConfigTokenToggle" style="margin-top:6px">👁 token を表示</button>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+        <button type="button" class="btn primary" id="sheetsConfigSaveBtn">💾 保存して有効化</button>
+        <button type="button" class="btn ghost"   id="sheetsConfigClearBtn">🗑 設定をクリア</button>
+      </div>
+
+      <p style="margin:14px 0 0;font-size:11px;color:#666;line-height:1.5">
+        ・保存先: localStorage キー <code>xchange_sheets_config_v1</code> （この端末のみ）<br>
+        ・未設定でも アプリ自体は動きます（OCR は Tesseract.js、Sheets送信は無効化）<br>
+        ・テスト終了後は「設定をクリア」推奨（端末を貸し借りする場合）
+      </p>
+    </div>
+  </div>
+</div>
 
 <!-- v3.18.13: 非公開ローカル設定 (config.local.js は .gitignore で除外)。
      存在しない場合は 404 になるだけでアプリ動作には影響しない。

@@ -1,0 +1,31 @@
+# ============================================================
+# X-Change .gitignore
+# ============================================================
+# 本物の Apps Script URL / token を含むローカル設定。
+# 必ずローカルだけに置き、リポジトリに含めないこと。
+config.local.js
+
+# macOS のフォルダメタデータ (リポジトリ汚染防止)
+.DS_Store
+**/.DS_Store
+
+# エディタ作業ファイル
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS / ビルド一時ファイル
+Thumbs.db
+node_modules/
+dist/
+build/
+
+# 環境変数 / 認証情報
+.env
+.env.local
+.env.*.local
+secrets.json
+credentials.json
+service-account*.json

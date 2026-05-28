@@ -690,17 +690,35 @@ retrySendToSheets(type, id)
 
 `app.js` 冒頭の `XCHANGE_SHEETS_CONFIG` で制御します。
 
+**v3.18.13 以降: 公開リポジトリには endpoint / token を含めない構成に変更しました。**
+本物の URL / token は `config.local.js` (`.gitignore` 除外) にだけ書き、
+`window.XCHANGE_LOCAL_CONFIG` 経由で `app.js` の `XCHANGE_SHEETS_CONFIG` を上書きします。
+
 ```javascript
+// app.js (公開コード) — 既定値は空文字。配布物に秘密情報を含めない。
 const XCHANGE_SHEETS_CONFIG = {
   enabled: true,
-  endpoint: 'https://script.google.com/macros/s/.../exec',
-  token:    'XCHANGE_TOKEN_2026'
+  endpoint: '',
+  token:    ''
 };
+// config.local.js (gitignored・各端末ローカルのみ) から注入される
+if (window.XCHANGE_LOCAL_CONFIG) {
+  XCHANGE_SHEETS_CONFIG.endpoint = window.XCHANGE_LOCAL_CONFIG.endpoint;
+  XCHANGE_SHEETS_CONFIG.token    = window.XCHANGE_LOCAL_CONFIG.token;
+}
+```
+
+`config.local.js` の作り方:
+```bash
+cp config.example.js config.local.js
+# config.local.js を開き <YOUR_APPS_SCRIPT_URL> / <YOUR_TOKEN> を実際の値に書き換える
 ```
 
 - `enabled: false` で送信を無効化（ローカル保存のみで動作）
 - `endpoint` は Apps Script ウェブアプリの公開URL（アクセスは「全員」「自分として実行」推奨）
 - `token` は Apps Script 側 `doPost(e)` で照合する共有秘密
+- `config.local.js` が無い、または endpoint/token が空文字の場合は `_postToSheets` が
+  自動で no-op になり、ローカル保存・画面表示・OCR・集計関数は通常通り動作します
 
 #### Apps Script 側で受け取る JSON
 
@@ -708,7 +726,7 @@ const XCHANGE_SHEETS_CONFIG = {
 ```json
 {
   "action": "addSale",
-  "token":  "XCHANGE_TOKEN_2026",
+  "token":  "<YOUR_TOKEN>",
   "payload": {
     "saleDate":      "2026-05-18",
     "storeName":     "吉田自動車工業 X-Change本店",
@@ -736,7 +754,7 @@ const XCHANGE_SHEETS_CONFIG = {
 ```json
 {
   "action": "addExpense",
-  "token":  "XCHANGE_TOKEN_2026",
+  "token":  "<YOUR_TOKEN>",
   "payload": {
     "expenseDate":        "2026-05-18",
     "storeName":          "吉田自動車工業 X-Change本店",
@@ -762,7 +780,7 @@ const XCHANGE_SHEETS_CONFIG = {
 ```json
 {
   "action": "addPurchase",
-  "token":  "XCHANGE_TOKEN_2026",
+  "token":  "<YOUR_TOKEN>",
   "payload": {
     "purchaseDate":    "2026-05-18",
     "storeName":       "吉田自動車工業 X-Change本店",

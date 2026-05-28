@@ -1769,6 +1769,11 @@
   <button class="link-btn" id="resetDataBtn">デモデータ初期化</button>
 </footer>
 
+<!-- v3.18.13: 非公開ローカル設定 (config.local.js は .gitignore で除外)。
+     存在しない場合は 404 になるだけでアプリ動作には影響しない。
+     存在する場合は window.XCHANGE_LOCAL_CONFIG を定義し app.js から参照される。 -->
+<script src="config.local.js" onerror="this.onerror=null;console.log('[Sheets] config.local.js なし → Sheets送信は無効 (ローカル保存のみ動作)')"></script>
+
 <!-- v3.17: Tesseract.js (ブラウザOCR、APIキー不要) を遅延ロードする -->
 <script src="app.js"></script>
 </body>

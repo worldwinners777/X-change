@@ -92,17 +92,36 @@
     "loading":                  "読込中",
     "done":                     "完了"
   };
-  // ===== v3.17.4: Google スプレッドシート連携 (Apps Script Web App) =====
+  // ===== v3.17.4 / v3.18.13: Google スプレッドシート連携 (Apps Script Web App) =====
   // 売上登録時に Google Apps Script Web アプリへ POST 送信し、Sheets に追記する。
   // - enabled=false にすると送信を無効化（ローカル保存のみで動作）。
   // - endpoint は Apps Script の「ウェブアプリ」公開URL。
   // - token は Apps Script 側で照合する共有秘密 (送信時 body に同梱)。
   // 送信に失敗しても localStorage 保存は維持される (sheetsSyncStatus="failed")。
+  //
+  // v3.18.13: 公開リポジトリには endpoint / token を一切含めない方針に変更。
+  //   - 既定値は空文字 → この状態では _postToSheets が no-op (ローカル保存のみ動作)
+  //   - 実環境では `config.local.js` (gitignored) が `window.XCHANGE_LOCAL_CONFIG` を
+  //     提供し、ここで上書きされる。`index.html` は app.js の直前に config.local.js を
+  //     ロードする (ファイルが無くても 404 になるだけでアプリ自体は動く)。
+  //   - 設定例は `config.example.js` を参照。
   const XCHANGE_SHEETS_CONFIG = {
     enabled: true,
-    endpoint: 'https://script.google.com/macros/s/AKfycbyrlGjkOIw0DzRM_mUPWdtz3ThfHMOw0ggjRF1lov4A7hQ9m8K6VgmKgtEOW9b7WU-e/exec',
-    token: 'XCHANGE_TOKEN_2026'
+    endpoint: '',
+    token:    ''
   };
+  // 非公開ローカル設定 (config.local.js) からの注入
+  try {
+    if (typeof window !== 'undefined' && window.XCHANGE_LOCAL_CONFIG) {
+      var __cfg = window.XCHANGE_LOCAL_CONFIG;
+      if (typeof __cfg.endpoint === 'string' && __cfg.endpoint) XCHANGE_SHEETS_CONFIG.endpoint = __cfg.endpoint;
+      if (typeof __cfg.token    === 'string' && __cfg.token)    XCHANGE_SHEETS_CONFIG.token    = __cfg.token;
+      if (typeof __cfg.enabled  === 'boolean')                   XCHANGE_SHEETS_CONFIG.enabled  = __cfg.enabled;
+      console.log('[Sheets] config injected from config.local.js (endpoint set, token set)');
+    } else {
+      console.log('[Sheets] config.local.js not loaded → Sheets送信は無効 (ローカル保存のみ動作)');
+    }
+  } catch (_e) { /* 注入失敗時は既定の空設定で続行 */ }
 
   // ===== v3: 既知の車種マスタ（AI解析用） =====
   const CAR_MODELS = [
@@ -1425,8 +1444,9 @@
   function _postToSheets(action, payload) {
     // v3.18.9: 送信内容を必ずログ出力（診断用）
     console.log('[Sheets] ' + action + ' sending', payload);
-    if (!XCHANGE_SHEETS_CONFIG || !XCHANGE_SHEETS_CONFIG.enabled || !XCHANGE_SHEETS_CONFIG.endpoint) {
-      console.error('[Sheets] ' + action + ' failed', 'disabled (enabled=false または endpoint 未設定)');
+    if (!XCHANGE_SHEETS_CONFIG || !XCHANGE_SHEETS_CONFIG.enabled || !XCHANGE_SHEETS_CONFIG.endpoint || !XCHANGE_SHEETS_CONFIG.token) {
+      // v3.18.13: endpoint/token が空の場合は config.local.js 未配置 → no-op で安全に終了
+      console.warn('[Sheets] ' + action + ' skipped', 'disabled (config.local.js が未配置か、enabled=false / endpoint / token 未設定)');
       return Promise.resolve({ ok: false, reason: 'disabled' });
     }
     const body = JSON.stringify({

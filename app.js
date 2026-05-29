@@ -2985,13 +2985,52 @@
   // - Vision 失敗時 (config 未配置 / ネット失敗 / クォータ超過 等) は呼出側で
   //   Tesseract.js + Canvas前処理 にフォールバックする。
   // 戻り値: { ok:true, ocrText, expense:{...}, purchase:{...} } または例外
+  // ===== v3.18.16: Vision OCR 状態バナー =====
+  // 画面 (#visionStatusBanner) に Vision OCR の各ステップを明示する。
+  // DOM が無くても壊れない (要素未存在チェック)。引数: { engine, stage, ok, message, detail }
+  function _showVisionStatus(state) {
+    try {
+      var el = $("#visionStatusBanner");
+      if (!el) return;
+      var engine  = state.engine  || "unknown";
+      var stage   = state.stage   || "";
+      var ok      = !!state.ok;
+      var failed  = state.ok === false;
+      var msg     = state.message || "";
+      var detail  = state.detail  || "";
+      var icon    = ok ? "✅" : (failed ? "❌" : "🛰");
+      var color   = ok ? "#0a7a4d" : (failed ? "#c1271a" : "#0b3d91");
+      el.hidden = false;
+      el.style.borderLeft = "4px solid " + color;
+      el.innerHTML =
+        '<div style="font-weight:800;color:' + color + '">' + icon + ' OCR engine: ' + escapeHtml(engine) +
+        (stage ? ' <span style="opacity:.7;font-weight:600">(stage: ' + escapeHtml(stage) + ')</span>' : '') +
+        '</div>' +
+        (msg    ? '<div style="font-size:13px;margin-top:4px">' + escapeHtml(msg) + '</div>' : '') +
+        (detail ? '<div style="font-size:11px;margin-top:4px;color:#566;font-family:monospace;white-space:pre-wrap;word-break:break-all">' + escapeHtml(detail) + '</div>' : '');
+    } catch (_e) {}
+  }
+
   async function _runVisionOCR(dataUrl) {
-    if (!XCHANGE_SHEETS_CONFIG || !XCHANGE_SHEETS_CONFIG.endpoint || !XCHANGE_SHEETS_CONFIG.token) {
-      // v3.18.15: 設定未入力時はユーザー向けに toast を出す
+    // v3.18.16: 診断強化 — 全段階で console.log と画面バナー
+    var hasEndpoint = !!(XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.endpoint);
+    var hasToken    = !!(XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.token);
+    try { console.log("[Vision] precheck — endpointSet=" + hasEndpoint + " tokenSet=" + hasToken); } catch (_) {}
+
+    if (!hasEndpoint || !hasToken) {
+      _showVisionStatus({ engine: "google-vision", stage: "precheck", ok: false,
+        message: "Sheets 設定が未入力 (endpointSet=" + hasEndpoint + ", tokenSet=" + hasToken + ")",
+        detail: "画面下「⚙ 接続設定」から endpoint と token を入力してください" });
       try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）"); } catch (_) {}
       throw new Error("Vision OCR config unavailable (Sheets設定が未入力)");
     }
-    if (!dataUrl || typeof dataUrl !== "string") throw new Error("dataUrl missing");
+    if (!dataUrl || typeof dataUrl !== "string") {
+      _showVisionStatus({ engine: "google-vision", stage: "precheck", ok: false, message: "dataUrl が空" });
+      throw new Error("dataUrl missing");
+    }
+
+    _showVisionStatus({ engine: "google-vision", stage: "preprocess", ok: undefined,
+      message: "画像を Apps Script 送信用にリサイズ中…" });
 
     // 送信前にリサイズ（Vision は色情報を活用するためグレースケール/二値化はかけない）
     let sendDataUrl = dataUrl;
@@ -3008,33 +3047,85 @@
     }
 
     showOCRProgress("Vision OCR 準備中…");
-    updateOCRProgress("画像をサーバへ送信中…", 0.15);
+    updateOCRProgress("Apps Scriptへ送信中…", 0.15);
 
     const body = JSON.stringify({
       action:  "visionOcr",
-      token:   XCHANGE_SHEETS_CONFIG.token,
+      token:   XCHANGE_SHEETS_CONFIG.token,  // 実値は console には出さない
       payload: { imageBase64: sendDataUrl, mode: "both" }
     });
-    try { console.log("[Vision] visionOcr request bytes=" + body.length); } catch (_) {}
+    try {
+      console.log("[Vision] sending — action=visionOcr endpoint=" + XCHANGE_SHEETS_CONFIG.endpoint
+        + " tokenSet=true bodyBytes=" + body.length);
+    } catch (_) {}
+    _showVisionStatus({ engine: "google-vision", stage: "fetch-send", ok: undefined,
+      message: "Apps Script へ送信中 (action=visionOcr, " + body.length.toLocaleString() + " bytes)" });
 
-    updateOCRProgress("Vision OCR 処理中…", 0.45);
-    const resp = await fetch(XCHANGE_SHEETS_CONFIG.endpoint, {
-      method:  "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body:    body
-    });
-    if (!resp.ok) throw new Error("Vision OCR HTTP " + resp.status);
+    let resp;
+    try {
+      updateOCRProgress("Vision OCR 処理中…", 0.45);
+      resp = await fetch(XCHANGE_SHEETS_CONFIG.endpoint, {
+        method:  "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body:    body
+      });
+    } catch (netErr) {
+      try { console.error("[Vision] fetch network error:", netErr); } catch (_) {}
+      _showVisionStatus({ engine: "google-vision", stage: "fetch-network", ok: false,
+        message: "ネットワーク失敗 (fetch が例外)", detail: String(netErr && netErr.message || netErr) });
+      throw new Error("Vision OCR fetch failed: " + (netErr && netErr.message || netErr));
+    }
+
+    try { console.log("[Vision] response received — HTTP " + resp.status + " ok=" + resp.ok); } catch (_) {}
+    _showVisionStatus({ engine: "google-vision", stage: "fetch-recv", ok: resp.ok,
+      message: "Apps Script からレスポンス受信 (HTTP " + resp.status + ")" });
+    if (!resp.ok) {
+      const httpText = await resp.text().catch(() => "");
+      _showVisionStatus({ engine: "google-vision", stage: "fetch-http-error", ok: false,
+        message: "Apps Script HTTP " + resp.status, detail: httpText.substring(0, 300) });
+      throw new Error("Vision OCR HTTP " + resp.status + " — " + httpText.substring(0, 200));
+    }
     const text = await resp.text();
     let json;
     try { json = JSON.parse(text); }
-    catch (_e) { throw new Error("Vision OCR: invalid JSON response (" + text.substring(0, 120) + ")"); }
-    if (!json || json.ok === false) {
-      throw new Error("Vision OCR error: " + (json && json.error || "unknown"));
+    catch (parseErr) {
+      try { console.error("[Vision] invalid JSON:", text.substring(0, 200)); } catch (_) {}
+      _showVisionStatus({ engine: "google-vision", stage: "parse-json", ok: false,
+        message: "Apps Script の応答 JSON 解析失敗", detail: text.substring(0, 200) });
+      throw new Error("Vision OCR: invalid JSON response (" + text.substring(0, 120) + ")");
     }
+
+    // 診断用ログ (機密値を除外して response を出す)
+    try {
+      var safeJson = {
+        success:       json.success,
+        engine:        json.engine,
+        apiKeyPresent: json.apiKeyPresent,
+        receivedBytes: json.receivedBytes,
+        stage:         json.stage,
+        ocrTextLen:    json.ocrTextLen,
+        error:         json.error,
+        fallbackHint:  json.fallbackHint
+      };
+      console.log("[Vision] Apps Script response:", safeJson);
+    } catch (_) {}
+
+    if (!json || json.success === false || json.ok === false) {
+      _showVisionStatus({ engine: json && json.engine || "google-vision",
+        stage: (json && json.stage) || "vision-call", ok: false,
+        message: "Vision OCR 失敗: " + (json && json.error || "unknown"),
+        detail:  "apiKeyPresent=" + (json && json.apiKeyPresent) + " receivedBytes=" + (json && json.receivedBytes) });
+      var serverErr = new Error("Vision OCR error: " + (json && json.error || "unknown"));
+      serverErr._visionResponse = json;
+      throw serverErr;
+    }
+
     updateOCRProgress("完了", 1);
     setTimeout(hideOCRProgress, 600);
+    _showVisionStatus({ engine: "google-vision", stage: "done", ok: true,
+      message: "Vision OCR 成功 (ocrText " + (json.ocrTextLen || 0) + " chars)" });
     try { console.log("[Vision] OCR ok chars=" + (json.ocrText || "").length); } catch (_) {}
-    return json; // { ok, ocrText, expense, purchase }
+    return json; // { ok, success, engine, ocrText, expense, purchase, ... }
   }
 
   // ===== v3.17 / v3.18.12 / v3.18.14: 実OCR実行 =====
@@ -3044,7 +3135,7 @@
   // 既存呼出側 (setupExpenseUpload) は OCR 生テキスト (string) を受け取るだけなので
   // 呼出シグネチャは変更しない。サーバ側抽出結果は _expenseUploadCtx に副次的に保持。
   async function runRealOCR(dataUrl) {
-    // --- v3.18.14: Vision OCR 優先試行 ---
+    // --- v3.18.14 / v3.18.16: Vision OCR 優先試行 + 明示的なエラー表示 ---
     if (XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.endpoint && XCHANGE_SHEETS_CONFIG.token) {
       try {
         try { console.log("[OCR] engine=Google Cloud Vision (DOCUMENT_TEXT_DETECTION)"); } catch (_) {}
@@ -3053,16 +3144,39 @@
           _expenseUploadCtx.visionExpense  = vr.expense  || null;
           _expenseUploadCtx.visionPurchase = vr.purchase || null;
           _expenseUploadCtx.ocrEngine      = "vision";
+          _expenseUploadCtx.ocrEngineLabel = "Google Cloud Vision";
+          _expenseUploadCtx.fallbackUsed   = false;
         }
         return vr.ocrText || "";
       } catch (visionErr) {
-        try { console.warn("[OCR] Vision failed → fallback to Tesseract.js:", visionErr && visionErr.message || visionErr); } catch (_) {}
+        // v3.18.16: 黙ってフォールバックせず、エラーを画面に出してから Tesseract へ
+        var errMsg = String(visionErr && visionErr.message || visionErr);
+        try { console.warn("[OCR] Vision failed → fallback to Tesseract.js:", errMsg); } catch (_) {}
+        try { toast("Vision OCR 失敗: " + errMsg.substring(0, 80) + " — Tesseract.js でフォールバックします"); } catch (_) {}
+        _showVisionStatus({ engine: "google-vision", stage: "fallback-start", ok: false,
+          message: "Vision OCR 失敗 → Tesseract.js にフォールバックします", detail: errMsg });
+        if (_expenseUploadCtx) {
+          _expenseUploadCtx.visionExpense  = null;
+          _expenseUploadCtx.visionPurchase = null;
+          _expenseUploadCtx.ocrEngine      = "tesseract";
+          _expenseUploadCtx.ocrEngineLabel = "Tesseract.js fallback";
+          _expenseUploadCtx.visionError    = errMsg;
+          _expenseUploadCtx.fallbackUsed   = true;
+        }
         // fall through to Tesseract
       }
     } else {
-      // v3.18.15: 設定未入力 → ユーザーへ案内し Tesseract で続行
+      // v3.18.15 / v3.18.16: 設定未入力 → 画面表示 + Tesseract 続行
       try { console.log("[OCR] Sheets設定 未入力 → Tesseract.js で処理を続行"); } catch (_) {}
+      _showVisionStatus({ engine: "tesseract", stage: "no-config", ok: false,
+        message: "Sheets 設定が未入力のため Vision OCR をスキップ → Tesseract.js を使用",
+        detail: "画面下「⚙ 接続設定」から endpoint と token を入力すると Vision OCR が有効化されます" });
       try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）。Tesseract.jsで読み取ります"); } catch (_) {}
+      if (_expenseUploadCtx) {
+        _expenseUploadCtx.ocrEngine      = "tesseract";
+        _expenseUploadCtx.ocrEngineLabel = "Tesseract.js (no Sheets config)";
+        _expenseUploadCtx.fallbackUsed   = true;
+      }
     }
 
     // --- Tesseract.js + Canvas前処理 フォールバック (v3.18.12) ---
@@ -3093,11 +3207,24 @@
     updateOCRProgress("完了", 1);
     setTimeout(hideOCRProgress, 600);
     if (_expenseUploadCtx) {
-      _expenseUploadCtx.ocrEngine = "tesseract";
-      // Tesseract 経路では Vision 抽出結果は持っていないことを明示
-      _expenseUploadCtx.visionExpense  = null;
-      _expenseUploadCtx.visionPurchase = null;
+      // 既存のフォールバック注釈は上で設定済み (vision 失敗ケース or 未設定ケース)
+      if (!_expenseUploadCtx.ocrEngine) {
+        _expenseUploadCtx.ocrEngine      = "tesseract";
+        _expenseUploadCtx.ocrEngineLabel = "Tesseract.js";
+      }
+      _expenseUploadCtx.visionExpense  = _expenseUploadCtx.visionExpense  || null;
+      _expenseUploadCtx.visionPurchase = _expenseUploadCtx.visionPurchase || null;
     }
+    // v3.18.16: Tesseract 結果が出た時点で「Tesseract で読み取り完了」を画面に明示
+    _showVisionStatus({
+      engine: (_expenseUploadCtx && _expenseUploadCtx.ocrEngineLabel) || "Tesseract.js fallback",
+      stage:  "tesseract-done", ok: true,
+      message: "Tesseract.js で OCR を完了しました (chars=" +
+        ((result && result.data && result.data.text) ? result.data.text.length : 0) + ")",
+      detail: (_expenseUploadCtx && _expenseUploadCtx.visionError)
+        ? "原因: " + _expenseUploadCtx.visionError
+        : ""
+    });
     return (result && result.data && result.data.text) ? result.data.text : "";
   }
 
@@ -3106,8 +3233,14 @@
     const el = $("#ocrSourceBadge");
     if (!el) return;
     el.dataset.source = source;
+    // v3.18.16: 実OCR の場合は使用エンジン (Vision / Tesseract) を併記する
+    var engineSuffix = "";
+    if (source === "real" && _expenseUploadCtx) {
+      var lbl = _expenseUploadCtx.ocrEngineLabel || _expenseUploadCtx.ocrEngine || "Unknown";
+      engineSuffix = " — " + lbl;
+    }
     el.textContent =
-      source === "real"   ? "実OCR読取" :
+      source === "real"   ? ("実OCR読取" + engineSuffix) :
       source === "sample" ? "サンプルOCR読取" :
                             "メモテキスト";
   }
@@ -3495,6 +3628,12 @@
       const engineLabel = (ctx && ctx.ocrEngine === "vision")
         ? "Google Cloud Vision (DOCUMENT_TEXT_DETECTION)"
         : "Tesseract.js + Canvas前処理";
+
+      // v3.18.16: renderExpenseConfirm が読む OCR engine メタを draft に持ち越す
+      draft.ocrEngine      = (ctx && ctx.ocrEngine)      || "tesseract";
+      draft.ocrEngineLabel = (ctx && ctx.ocrEngineLabel) || engineLabel;
+      draft.fallbackUsed   = !!(ctx && ctx.fallbackUsed);
+      draft.visionError    = (ctx && ctx.visionError)    || "";
       draft.ocrText = baseText
         ? "[実OCR読取 (" + engineLabel + ")]\n" + (invoiceMemo ? invoiceMemo : "") + "--------------------\n" + baseText
         : (memo ? "[メモテキスト (画像OCR結果なし)]\n--------------------\n" + memo : "[OCR結果なし]");
@@ -3614,6 +3753,24 @@
       const hasOcr = !!(draftExpense.ocrText && draftExpense.ocrText.trim());
       if (ocrCard)    ocrCard.hidden    = !hasOcr;
       if (ocrHeading) ocrHeading.hidden = !hasOcr;
+
+      // v3.18.16: OCR engine ラベルを目立つ位置に表示
+      if (ocrCard && hasOcr) {
+        let lbl = ocrCard.querySelector('[data-role="ocr-engine-label"]');
+        if (!lbl) {
+          lbl = document.createElement("div");
+          lbl.setAttribute("data-role", "ocr-engine-label");
+          lbl.style.cssText = "padding:8px 10px;margin:6px 0 8px;border-radius:6px;font-size:13px;font-weight:800";
+          ocrCard.insertBefore(lbl, ocrCard.firstChild);
+        }
+        const engine = (draftExpense.ocrEngineLabel) || (draftExpense.ocrEngine === "vision" ? "Google Cloud Vision" : draftExpense.ocrEngine === "tesseract" ? "Tesseract.js fallback" : "Unknown");
+        const fb     = draftExpense.fallbackUsed ? " (fallback)" : "";
+        const isVis  = /Vision/i.test(engine);
+        lbl.style.background = isVis ? "rgba(10,122,77,.10)"   : "rgba(193,39,26,.10)";
+        lbl.style.color      = isVis ? "#0a7a4d"               : "#c1271a";
+        lbl.style.border     = "1px solid " + (isVis ? "#0a7a4d44" : "#c1271a44");
+        lbl.textContent = "OCR engine: " + engine + fb + (draftExpense.visionError ? "（Vision エラー: " + draftExpense.visionError.substring(0, 80) + "）" : "");
+      }
     }
     // 大型サマリー
     $("#confExpenseAmount").value = draftExpense.amount || "";

@@ -2985,70 +2985,148 @@
   // - Vision 失敗時 (config 未配置 / ネット失敗 / クォータ超過 等) は呼出側で
   //   Tesseract.js + Canvas前処理 にフォールバックする。
   // 戻り値: { ok:true, ocrText, expense:{...}, purchase:{...} } または例外
-  // ===== v3.18.16: Vision OCR 状態バナー =====
-  // 画面 (#visionStatusBanner) に Vision OCR の各ステップを明示する。
-  // DOM が無くても壊れない (要素未存在チェック)。引数: { engine, stage, ok, message, detail }
-  function _showVisionStatus(state) {
+  // ===== v3.18.16 / v3.18.17: Vision OCR 状態バナー (state-based) =====
+  // 画面 (#visionStatusBanner) に必須診断フィールドを常時表示する:
+  //   OCR engine / stage / original image bytes / compressed image bytes /
+  //   Apps Script response received / fallback used / error message
+  // _setVisionState で部分更新、_renderVisionBanner で再描画。
+  var _visionState = null;
+  function _resetVisionState() {
+    _visionState = {
+      engine: "—", stage: "—",
+      originalBytes: 0, compressedBytes: 0,
+      responseReceived: false, fallbackUsed: false,
+      error: "", message: "", detail: "",
+      ok: undefined // true=success / false=fail / undefined=in-progress
+    };
+  }
+  function _setVisionState(patch) {
+    if (!_visionState) _resetVisionState();
+    if (patch && typeof patch === "object") {
+      for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) _visionState[k] = patch[k];
+    }
+    _renderVisionBanner();
+  }
+  function _fmtBytes(n) { return (n | 0).toLocaleString() + " bytes"; }
+  function _renderVisionBanner() {
     try {
       var el = $("#visionStatusBanner");
-      if (!el) return;
-      var engine  = state.engine  || "unknown";
-      var stage   = state.stage   || "";
-      var ok      = !!state.ok;
-      var failed  = state.ok === false;
-      var msg     = state.message || "";
-      var detail  = state.detail  || "";
-      var icon    = ok ? "✅" : (failed ? "❌" : "🛰");
-      var color   = ok ? "#0a7a4d" : (failed ? "#c1271a" : "#0b3d91");
+      if (!el || !_visionState) return;
+      var s     = _visionState;
+      var ok    = s.ok === true;
+      var fail  = s.ok === false;
+      var icon  = ok ? "✅" : (fail ? "❌" : "🛰");
+      var color = ok ? "#0a7a4d" : (fail ? "#c1271a" : "#0b3d91");
       el.hidden = false;
       el.style.borderLeft = "4px solid " + color;
       el.innerHTML =
-        '<div style="font-weight:800;color:' + color + '">' + icon + ' OCR engine: ' + escapeHtml(engine) +
-        (stage ? ' <span style="opacity:.7;font-weight:600">(stage: ' + escapeHtml(stage) + ')</span>' : '') +
+        '<div style="font-weight:800;color:' + color + ';font-size:14px">' +
+          icon + ' OCR engine: ' + escapeHtml(s.engine || "—") +
         '</div>' +
-        (msg    ? '<div style="font-size:13px;margin-top:4px">' + escapeHtml(msg) + '</div>' : '') +
-        (detail ? '<div style="font-size:11px;margin-top:4px;color:#566;font-family:monospace;white-space:pre-wrap;word-break:break-all">' + escapeHtml(detail) + '</div>' : '');
+        (s.message ? '<div style="font-size:13px;margin-top:4px">' + escapeHtml(s.message) + '</div>' : "") +
+        '<table style="margin-top:8px;font-size:12px;border-collapse:collapse;width:100%;font-family:Menlo,Consolas,monospace">' +
+          '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">stage</td>'                    + '<td>' + escapeHtml(s.stage || "—") + '</td></tr>' +
+          '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">original image bytes</td>'    + '<td>' + _fmtBytes(s.originalBytes)     + '</td></tr>' +
+          '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">compressed image bytes</td>'  + '<td>' + _fmtBytes(s.compressedBytes)   + '</td></tr>' +
+          '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">Apps Script response</td>'    + '<td>' + (s.responseReceived ? "received" : "not received") + '</td></tr>' +
+          '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">fallback used</td>'           + '<td>' + (s.fallbackUsed ? "true" : "false") + '</td></tr>' +
+          (s.error ? '<tr><td style="padding:2px 8px 2px 0;color:#566;white-space:nowrap">error message</td><td style="color:#c1271a;word-break:break-all">' + escapeHtml(s.error) + '</td></tr>' : "") +
+        '</table>' +
+        (s.detail ? '<div style="font-size:11px;margin-top:6px;color:#566;font-family:Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all">' + escapeHtml(s.detail) + '</div>' : "");
     } catch (_e) {}
   }
+  // 旧シグネチャ互換: 既存呼出 _showVisionStatus({engine, stage, ok, message, detail}) も動かす
+  function _showVisionStatus(state) { _setVisionState(state || {}); }
 
+  // ===== v3.18.17: Vision OCR 送信用 画像圧縮 (JPEG) =====
+  // 長辺 maxSize / 品質 quality で JPEG エンコード。
+  // 失敗時は元の dataUrl をそのまま返すフォールバック。
+  function _compressImageForVision(dataUrl, options) {
+    options = options || {};
+    var maxSize = options.maxSize != null ? options.maxSize : 1000;
+    var quality = options.quality != null ? options.quality : 0.65;
+    return new Promise(function (resolve) {
+      try {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth || img.width;
+            var h = img.naturalHeight || img.height;
+            if (!w || !h) { resolve(dataUrl); return; }
+            var scale = (Math.max(w, h) > maxSize) ? (maxSize / Math.max(w, h)) : 1;
+            var nw = Math.max(1, Math.round(w * scale));
+            var nh = Math.max(1, Math.round(h * scale));
+            var canvas = document.createElement("canvas");
+            canvas.width = nw; canvas.height = nh;
+            var ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#fff"; // JPEG 透明部は黒くなるため白背景
+            ctx.fillRect(0, 0, nw, nh);
+            ctx.drawImage(img, 0, 0, nw, nh);
+            try {
+              var out = canvas.toDataURL("image/jpeg", quality);
+              resolve(out);
+            } catch (_) { resolve(dataUrl); }
+          } catch (_) { resolve(dataUrl); }
+        };
+        img.onerror = function () { resolve(dataUrl); };
+        img.src = dataUrl;
+      } catch (_) { resolve(dataUrl); }
+    });
+  }
+
+  // v3.18.17: Vision OCR タイムアウト (45s) と圧縮 (JPEG q0.65 / maxSize 1000→800)
+  var VISION_FETCH_TIMEOUT_MS = 45000;
+  var VISION_MAX_PAYLOAD_BYTES = 2 * 1000 * 1000; // 2MB
   async function _runVisionOCR(dataUrl) {
-    // v3.18.16: 診断強化 — 全段階で console.log と画面バナー
+    // v3.18.16 / v3.18.17: 状態をリセットしてから段階的に更新
+    _resetVisionState();
     var hasEndpoint = !!(XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.endpoint);
     var hasToken    = !!(XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.token);
-    try { console.log("[Vision] precheck — endpointSet=" + hasEndpoint + " tokenSet=" + hasToken); } catch (_) {}
+    var originalBytes = (typeof dataUrl === "string") ? dataUrl.length : 0;
+    _setVisionState({
+      engine: "google-vision", stage: "precheck",
+      originalBytes: originalBytes, compressedBytes: 0,
+      responseReceived: false, fallbackUsed: false, error: "", ok: undefined,
+      message: "Vision OCR 開始 — endpointSet=" + hasEndpoint + ", tokenSet=" + hasToken
+    });
+    try { console.log("[Vision] precheck — endpointSet=" + hasEndpoint + " tokenSet=" + hasToken + " originalBytes=" + originalBytes); } catch (_) {}
 
     if (!hasEndpoint || !hasToken) {
-      _showVisionStatus({ engine: "google-vision", stage: "precheck", ok: false,
-        message: "Sheets 設定が未入力 (endpointSet=" + hasEndpoint + ", tokenSet=" + hasToken + ")",
+      _setVisionState({ stage: "precheck-fail", ok: false,
+        message: "Sheets 設定が未入力",
+        error: "Sheets 設定が未入力 (endpointSet=" + hasEndpoint + ", tokenSet=" + hasToken + ")",
         detail: "画面下「⚙ 接続設定」から endpoint と token を入力してください" });
       try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）"); } catch (_) {}
       throw new Error("Vision OCR config unavailable (Sheets設定が未入力)");
     }
     if (!dataUrl || typeof dataUrl !== "string") {
-      _showVisionStatus({ engine: "google-vision", stage: "precheck", ok: false, message: "dataUrl が空" });
+      _setVisionState({ stage: "precheck-fail", ok: false, message: "dataUrl が空", error: "dataUrl missing" });
       throw new Error("dataUrl missing");
     }
 
-    _showVisionStatus({ engine: "google-vision", stage: "preprocess", ok: undefined,
-      message: "画像を Apps Script 送信用にリサイズ中…" });
+    // ===== v3.18.17: 必ず JPEG 圧縮してから送信 =====
+    _setVisionState({ stage: "compress", message: "画像を JPEG 圧縮中 (maxSize=1000, quality=0.65)…" });
+    showOCRProgress("Vision OCR 準備中…");
+    updateOCRProgress("画像を圧縮中…", 0.10);
 
-    // 送信前にリサイズ（Vision は色情報を活用するためグレースケール/二値化はかけない）
-    let sendDataUrl = dataUrl;
-    try {
-      sendDataUrl = await preprocessImageForOCR(dataUrl, {
-        maxSize:   2000,
-        grayscale: false,
-        contrast:  false,
-        binarize:  false
-      });
-    } catch (e) {
-      try { console.warn("[Vision] preprocess (resize) failed, sending original:", e); } catch (_) {}
-      sendDataUrl = dataUrl;
+    let sendDataUrl = await _compressImageForVision(dataUrl, { maxSize: 1000, quality: 0.65 });
+    let compressedBytes = sendDataUrl.length;
+    _setVisionState({ compressedBytes: compressedBytes,
+      message: "1st pass 圧縮完了 (" + compressedBytes.toLocaleString() + " bytes)" });
+    try { console.log("[Vision] compress pass1 — bytes=" + compressedBytes); } catch (_) {}
+
+    // 2MB 超なら更に縮小して再圧縮
+    if (compressedBytes > VISION_MAX_PAYLOAD_BYTES) {
+      _setVisionState({ stage: "compress-2", message: "サイズ超過 → 2nd pass 圧縮 (maxSize=800, quality=0.60)…" });
+      updateOCRProgress("画像を再圧縮中…", 0.18);
+      sendDataUrl = await _compressImageForVision(dataUrl, { maxSize: 800, quality: 0.60 });
+      compressedBytes = sendDataUrl.length;
+      _setVisionState({ compressedBytes: compressedBytes,
+        message: "2nd pass 圧縮完了 (" + compressedBytes.toLocaleString() + " bytes)" });
+      try { console.log("[Vision] compress pass2 — bytes=" + compressedBytes); } catch (_) {}
     }
 
-    showOCRProgress("Vision OCR 準備中…");
-    updateOCRProgress("Apps Scriptへ送信中…", 0.15);
-
+    // ===== Apps Script へ送信 =====
     const body = JSON.stringify({
       action:  "visionOcr",
       token:   XCHANGE_SHEETS_CONFIG.token,  // 実値は console には出さない
@@ -3056,33 +3134,46 @@
     });
     try {
       console.log("[Vision] sending — action=visionOcr endpoint=" + XCHANGE_SHEETS_CONFIG.endpoint
-        + " tokenSet=true bodyBytes=" + body.length);
+        + " tokenSet=true bodyBytes=" + body.length + " compressedBytes=" + compressedBytes
+        + " originalBytes=" + originalBytes);
     } catch (_) {}
-    _showVisionStatus({ engine: "google-vision", stage: "fetch-send", ok: undefined,
-      message: "Apps Script へ送信中 (action=visionOcr, " + body.length.toLocaleString() + " bytes)" });
+    _setVisionState({ stage: "fetch-send",
+      message: "Apps Script へ送信中 (action=visionOcr, body=" + body.length.toLocaleString() + " bytes)" });
+    updateOCRProgress("Apps Scriptへ送信中…", 0.30);
 
+    // ===== v3.18.17: 45 秒 AbortController タイムアウト =====
+    const controller   = new AbortController();
+    const timeoutId    = setTimeout(function () { controller.abort(); }, VISION_FETCH_TIMEOUT_MS);
     let resp;
     try {
       updateOCRProgress("Vision OCR 処理中…", 0.45);
       resp = await fetch(XCHANGE_SHEETS_CONFIG.endpoint, {
         method:  "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body:    body
+        body:    body,
+        signal:  controller.signal
       });
+      clearTimeout(timeoutId);
     } catch (netErr) {
-      try { console.error("[Vision] fetch network error:", netErr); } catch (_) {}
-      _showVisionStatus({ engine: "google-vision", stage: "fetch-network", ok: false,
-        message: "ネットワーク失敗 (fetch が例外)", detail: String(netErr && netErr.message || netErr) });
-      throw new Error("Vision OCR fetch failed: " + (netErr && netErr.message || netErr));
+      clearTimeout(timeoutId);
+      var isAbort = (netErr && (netErr.name === "AbortError" || /aborted/i.test(String(netErr.message || ""))));
+      var msg     = isAbort ? "Vision OCR timeout (" + (VISION_FETCH_TIMEOUT_MS/1000) + "s exceeded)"
+                            : ("ネットワーク失敗: " + (netErr && netErr.message || netErr));
+      try { console.error("[Vision] fetch error:", isAbort ? "timeout" : netErr); } catch (_) {}
+      _setVisionState({ stage: isAbort ? "timeout" : "fetch-network", ok: false,
+        message: msg, error: msg, responseReceived: false });
+      throw new Error(msg);
     }
 
-    try { console.log("[Vision] response received — HTTP " + resp.status + " ok=" + resp.ok); } catch (_) {}
-    _showVisionStatus({ engine: "google-vision", stage: "fetch-recv", ok: resp.ok,
+    _setVisionState({ stage: "fetch-recv", responseReceived: true,
       message: "Apps Script からレスポンス受信 (HTTP " + resp.status + ")" });
+    try { console.log("[Vision] response received — HTTP " + resp.status + " ok=" + resp.ok); } catch (_) {}
     if (!resp.ok) {
       const httpText = await resp.text().catch(() => "");
-      _showVisionStatus({ engine: "google-vision", stage: "fetch-http-error", ok: false,
-        message: "Apps Script HTTP " + resp.status, detail: httpText.substring(0, 300) });
+      _setVisionState({ stage: "fetch-http-error", ok: false,
+        message: "Apps Script HTTP " + resp.status,
+        error:   "Apps Script HTTP " + resp.status,
+        detail:  httpText.substring(0, 300) });
       throw new Error("Vision OCR HTTP " + resp.status + " — " + httpText.substring(0, 200));
     }
     const text = await resp.text();
@@ -3090,42 +3181,55 @@
     try { json = JSON.parse(text); }
     catch (parseErr) {
       try { console.error("[Vision] invalid JSON:", text.substring(0, 200)); } catch (_) {}
-      _showVisionStatus({ engine: "google-vision", stage: "parse-json", ok: false,
-        message: "Apps Script の応答 JSON 解析失敗", detail: text.substring(0, 200) });
+      _setVisionState({ stage: "parse-json", ok: false,
+        message: "Apps Script の応答 JSON 解析失敗",
+        error:   "invalid JSON response",
+        detail:  text.substring(0, 200) });
       throw new Error("Vision OCR: invalid JSON response (" + text.substring(0, 120) + ")");
     }
 
-    // 診断用ログ (機密値を除外して response を出す)
+    // 診断用ログ (機密値は含まれない)
     try {
       var safeJson = {
-        success:       json.success,
-        engine:        json.engine,
-        apiKeyPresent: json.apiKeyPresent,
-        receivedBytes: json.receivedBytes,
-        stage:         json.stage,
-        ocrTextLen:    json.ocrTextLen,
-        error:         json.error,
-        fallbackHint:  json.fallbackHint
+        success:          json.success,
+        engine:           json.engine,
+        apiKeyPresent:    json.apiKeyPresent,
+        receivedBytes:    json.receivedBytes,
+        stage:            json.stage,
+        ocrTextLen:       json.ocrTextLen,
+        error:            json.error,
+        visionHttpStatus: json.visionHttpStatus,
+        visionErrorBody:  json.visionErrorBody ? (String(json.visionErrorBody).substring(0, 80) + "…") : "",
+        fallbackHint:     json.fallbackHint
       };
       console.log("[Vision] Apps Script response:", safeJson);
     } catch (_) {}
 
     if (!json || json.success === false || json.ok === false) {
-      _showVisionStatus({ engine: json && json.engine || "google-vision",
-        stage: (json && json.stage) || "vision-call", ok: false,
-        message: "Vision OCR 失敗: " + (json && json.error || "unknown"),
-        detail:  "apiKeyPresent=" + (json && json.apiKeyPresent) + " receivedBytes=" + (json && json.receivedBytes) });
-      var serverErr = new Error("Vision OCR error: " + (json && json.error || "unknown"));
+      var srvErr = (json && json.error) || "unknown";
+      var srvStage = (json && json.stage) || "vision-call";
+      var detailLines = [
+        "apiKeyPresent=" + (json && json.apiKeyPresent),
+        "receivedBytes=" + (json && json.receivedBytes),
+        "visionHttpStatus=" + (json && json.visionHttpStatus),
+        (json && json.visionErrorBody) ? "visionErrorBody=" + String(json.visionErrorBody).substring(0, 200) : ""
+      ].filter(Boolean).join("\n");
+      _setVisionState({ engine: (json && json.engine) || "google-vision",
+        stage: srvStage, ok: false,
+        message: "Google Vision OCR failed: " + srvErr,
+        error:   srvErr,
+        detail:  detailLines });
+      var serverErr = new Error("Vision OCR error: " + srvErr);
       serverErr._visionResponse = json;
       throw serverErr;
     }
 
     updateOCRProgress("完了", 1);
     setTimeout(hideOCRProgress, 600);
-    _showVisionStatus({ engine: "google-vision", stage: "done", ok: true,
+    _setVisionState({ stage: "vision-success", ok: true,
       message: "Vision OCR 成功 (ocrText " + (json.ocrTextLen || 0) + " chars)" });
     try { console.log("[Vision] OCR ok chars=" + (json.ocrText || "").length); } catch (_) {}
-    return json; // { ok, success, engine, ocrText, expense, purchase, ... }
+    return json; // { ok, success, engine, ocrText, expense, purchase, extracted, ... }
   }
 
   // ===== v3.17 / v3.18.12 / v3.18.14: 実OCR実行 =====
@@ -3135,26 +3239,48 @@
   // 既存呼出側 (setupExpenseUpload) は OCR 生テキスト (string) を受け取るだけなので
   // 呼出シグネチャは変更しない。サーバ側抽出結果は _expenseUploadCtx に副次的に保持。
   async function runRealOCR(dataUrl) {
-    // --- v3.18.14 / v3.18.16: Vision OCR 優先試行 + 明示的なエラー表示 ---
+    // --- v3.18.14 / v3.18.16 / v3.18.17: Vision 優先 → 失敗時は confirm() で確認 ---
     if (XCHANGE_SHEETS_CONFIG && XCHANGE_SHEETS_CONFIG.endpoint && XCHANGE_SHEETS_CONFIG.token) {
       try {
         try { console.log("[OCR] engine=Google Cloud Vision (DOCUMENT_TEXT_DETECTION)"); } catch (_) {}
         const vr = await _runVisionOCR(dataUrl);
         if (_expenseUploadCtx) {
-          _expenseUploadCtx.visionExpense  = vr.expense  || null;
-          _expenseUploadCtx.visionPurchase = vr.purchase || null;
+          _expenseUploadCtx.visionExpense  = vr.expense  || (vr.extracted && vr.extracted.expense)  || null;
+          _expenseUploadCtx.visionPurchase = vr.purchase || (vr.extracted && vr.extracted.purchase) || null;
           _expenseUploadCtx.ocrEngine      = "vision";
           _expenseUploadCtx.ocrEngineLabel = "Google Cloud Vision";
           _expenseUploadCtx.fallbackUsed   = false;
         }
         return vr.ocrText || "";
       } catch (visionErr) {
-        // v3.18.16: 黙ってフォールバックせず、エラーを画面に出してから Tesseract へ
+        // v3.18.17: 黙ってフォールバックせず、エラー表示 + confirm() で Tesseract 起動の可否を確認
         var errMsg = String(visionErr && visionErr.message || visionErr);
-        try { console.warn("[OCR] Vision failed → fallback to Tesseract.js:", errMsg); } catch (_) {}
-        try { toast("Vision OCR 失敗: " + errMsg.substring(0, 80) + " — Tesseract.js でフォールバックします"); } catch (_) {}
-        _showVisionStatus({ engine: "google-vision", stage: "fallback-start", ok: false,
-          message: "Vision OCR 失敗 → Tesseract.js にフォールバックします", detail: errMsg });
+        try { console.warn("[OCR] Vision failed:", errMsg); } catch (_) {}
+        try { toast("Google Vision OCR failed: " + errMsg.substring(0, 80)); } catch (_) {}
+        // 画面バナーは _runVisionOCR 内で既に赤表示済み。確認ダイアログで明示的に同意を取る
+        var msg = "Google Vision OCR が失敗しました:\n\n" + errMsg + "\n\nTesseract.js fallback を実行しますか？";
+        var doFallback = false;
+        try { doFallback = window.confirm(msg); } catch (_) { doFallback = false; }
+        if (!doFallback) {
+          _setVisionState({ stage: "user-cancelled-fallback", ok: false, fallbackUsed: false,
+            message: "ユーザーが Tesseract フォールバックをキャンセルしました — OCR 結果なし",
+            error: errMsg });
+          try { toast("OCR を中止しました。再撮影 or 接続設定を確認してください"); } catch (_) {}
+          if (_expenseUploadCtx) {
+            _expenseUploadCtx.visionExpense  = null;
+            _expenseUploadCtx.visionPurchase = null;
+            _expenseUploadCtx.ocrEngine      = "vision-failed";
+            _expenseUploadCtx.ocrEngineLabel = "Google Vision (failed, no fallback)";
+            _expenseUploadCtx.visionError    = errMsg;
+            _expenseUploadCtx.fallbackUsed   = false;
+          }
+          hideOCRProgress();
+          return ""; // OCR 結果なし
+        }
+        // ユーザー同意あり → Tesseract へ
+        _setVisionState({ stage: "fallback-start", ok: undefined, fallbackUsed: true,
+          message: "ユーザー同意により Tesseract.js fallback を実行します",
+          error: errMsg });
         if (_expenseUploadCtx) {
           _expenseUploadCtx.visionExpense  = null;
           _expenseUploadCtx.visionPurchase = null;
@@ -3166,11 +3292,14 @@
         // fall through to Tesseract
       }
     } else {
-      // v3.18.15 / v3.18.16: 設定未入力 → 画面表示 + Tesseract 続行
+      // v3.18.15 / v3.18.16: 設定未入力 → 画面表示 + Tesseract 続行 (こちらは確認なし)
       try { console.log("[OCR] Sheets設定 未入力 → Tesseract.js で処理を続行"); } catch (_) {}
-      _showVisionStatus({ engine: "tesseract", stage: "no-config", ok: false,
+      _resetVisionState();
+      _setVisionState({ engine: "tesseract", stage: "no-config", ok: false, fallbackUsed: true,
+        originalBytes: (typeof dataUrl === "string") ? dataUrl.length : 0,
         message: "Sheets 設定が未入力のため Vision OCR をスキップ → Tesseract.js を使用",
-        detail: "画面下「⚙ 接続設定」から endpoint と token を入力すると Vision OCR が有効化されます" });
+        error:   "Sheets config missing (endpoint/token)",
+        detail:  "画面下「⚙ 接続設定」から endpoint と token を入力すると Vision OCR が有効化されます" });
       try { toast("Sheets設定を入力してください（画面下「⚙ 接続設定」）。Tesseract.jsで読み取ります"); } catch (_) {}
       if (_expenseUploadCtx) {
         _expenseUploadCtx.ocrEngine      = "tesseract";
